@@ -100,13 +100,26 @@ void GetAllocatedArea(REG eax)
 }
 
 // Is the instruction a storing into allocated heap areas?
-void CheckHeapStore(int addr, UINT32 mws) 
+void CheckHeapStore(int addr, UINT32 mws, int ins_addr, const std::string *s) 
 {
 	for (size_t i = 0; i < MemoryWatch.size(); i++)
 	{
 		if ((UINT32)addr >= MemoryWatch[i].Begin && (UINT32)addr <= MemoryWatch[i].End)
 		{
-			printf("[STRORE] Storing %d bytes into %d area, address is 0x%08x\n", mws, i + 1, (UINT32)addr);
+			if (MemoryWatch[i].Allocated)
+			{
+				printf("[STRORE] Storing %d bytes into %d area, address is 0x%08x\n", mws, i + 1, (UINT32)addr);
+				if ((UINT32)addr + mws > MemoryWatch[i].End)
+				{
+					printf("\t[HEAP OVERFLOW] Overflow possible. Instruction address is 0x%08x\n", ins_addr);
+					printf("\t[HEAP OVERFLOW] %s\n", (*s).c_str());
+				}
+			}
+			else
+			{
+				printf("\t[HEAP OVERFLOW] Reuse released data possible. Instruction address is 0x%08x\n", ins_addr);
+				printf("\t[HEAP OVERFLOW] %s\n", (*s).c_str());
+			}
 		}
 	}
 }
@@ -152,7 +165,7 @@ void Instruction(INS ins, void*)
 		);
 	}
 	// if we've got 'mov' some data to memory, let's check for storing into heap
-	else if (/*INS_Address(ins) < 0x70000000 && */INS_Opcode(ins) == XED_ICLASS_MOV && INS_IsMemoryWrite(ins))
+	else if ((UINT32)INS_Address(ins) < 0x70000000 && INS_Opcode(ins) == XED_ICLASS_MOV && INS_MemoryOperandIsWritten(ins, 0))
 	{
 		INS_InsertCall
 		(
@@ -160,6 +173,8 @@ void Instruction(INS ins, void*)
 			IPOINT_BEFORE, (AFUNPTR)CheckHeapStore,
 			IARG_MEMORYWRITE_EA,
 			IARG_UINT32, INS_MemoryWriteSize(ins),
+			IARG_ADDRINT, INS_Address(ins),
+			IARG_PTR, new std::string(INS_Disassemble(ins)),
 			IARG_END
 		);
 	}
