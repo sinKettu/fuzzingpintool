@@ -13,14 +13,21 @@
 #include <vector>
 #include <string.h>
 
-// Whatch where malloc returns allocated base
+// Watch where malloc returns allocated base
 UINT32 MallocReturnAddress = 0;
 
-// Structure with allocated base and allocated base + size of allocated area
+// Watch where free returns to know about success
+UINT32 FreeReturnAddress = 0;
+
+// Remember what base is gonna be cleared
+UINT32 MonitoringFreeAddress = 0;
+
+// Structure with allocated base and allocated base + size of allocated area and alloc-flag
 struct HeapAllocated
 {
 	UINT32 Begin;
 	UINT32 End;
+	BOOL Allocated;
 };
 
 // Neew to monitor storing to allocated heap areas
@@ -40,10 +47,19 @@ void ForMallocBefore(int size, int rtnaddr)
 
 }
 
+// Instrumenting free calls
+void ForFreeBefore(UINT32 free_addr, UINT32 rtn_addr)
+{
+	MonitoringFreeAddress = free_addr;
+	FreeReturnAddress = rtn_addr;
+}
+
 // Searching mallocs
 VOID Image(IMG img, void *)
 {
 	RTN malloc_rtn = RTN_FindByName(img, "malloc");
+	RTN free_rtn = RTN_FindByName(img, "free");
+
 	if (RTN_Valid(malloc_rtn))
 	{
 		RTN_Open(malloc_rtn);
@@ -59,6 +75,22 @@ VOID Image(IMG img, void *)
 
 		RTN_Close(malloc_rtn);
 	}
+
+	if (RTN_Valid(free_rtn))
+	{
+		RTN_Open(free_rtn);
+
+		RTN_InsertCall
+		(
+			free_rtn,
+			IPOINT_BEFORE, (AFUNPTR) ForFreeBefore,
+			IARG_FUNCARG_ENTRYPOINT_VALUE, 0,
+			IARG_RETURN_IP,
+			IARG_END
+		);
+
+		RTN_Close(free_rtn);
+	}
 }
 
 // Memory allocated in heap
@@ -67,14 +99,17 @@ void GetAllocatedArea(REG eax)
 	size_t last = MemoryWatch.size() - 1;
 	MemoryWatch[last].Begin = (UINT32)eax;
 	MemoryWatch[last].End += (UINT32)eax - 1;
+	MemoryWatch[last].Allocated = true;
 
 	printf(" start from 0x%08x\n", (UINT32)eax);
+
+	MallocReturnAddress = 0;
 }
 
 // Is the instruction a storing into allocated heap areas?
 void CheckHeapStore(int addr, UINT32 mws) 
 {
-	for (int i = 0; i < MemoryWatch.size(); i++)
+	for (size_t i = 0; i < MemoryWatch.size(); i++)
 	{
 		if ((UINT32)addr >= MemoryWatch[i].Begin && (UINT32)addr <= MemoryWatch[i].End)
 		{
@@ -83,17 +118,50 @@ void CheckHeapStore(int addr, UINT32 mws)
 	}
 }
 
+void ConfirmFree(void)
+{
+	for (size_t i = 0; i < MemoryWatch.size(); i++)
+	{
+		if (MonitoringFreeAddress == MemoryWatch[i].Begin)
+		{
+			MemoryWatch[i].Allocated = false;
+			printf("[FREE] Area %d with base 0x%08x is released\n", i + 1, MonitoringFreeAddress);
+			break;
+		}
+	}
+
+	MonitoringFreeAddress = 0;
+	FreeReturnAddress = 0;
+}
+
 void Instruction(INS ins, void*)
 {
 	// if mallocs returning to this instructions, we can find out base of allocated memory area in RAX(EAX)
 	if (INS_Address(ins) == MallocReturnAddress)
 	{
-		INS_InsertCall(ins, IPOINT_BEFORE, (AFUNPTR)GetAllocatedArea, IARG_REG_VALUE, REG_EAX, IARG_END);
+		INS_InsertCall
+		(
+			ins, 
+			IPOINT_BEFORE, (AFUNPTR)GetAllocatedArea, 
+			IARG_REG_VALUE, 
+			REG_EAX, 
+			IARG_END
+		);
+	}
+	else if (INS_Address(ins) == FreeReturnAddress && MonitoringFreeAddress != 0)
+	{
+		INS_InsertCall
+		(
+			ins,
+			IPOINT_BEFORE, (AFUNPTR)ConfirmFree,
+			IARG_END
+		);
 	}
 	// if we've got mov some data to memory, let's check for storing into heap
 	else if (/*INS_Address(ins) < 0x70000000 && */INS_Opcode(ins) == XED_ICLASS_MOV && INS_IsMemoryWrite(ins))
 	{
-		INS_InsertCall(
+		INS_InsertCall
+		(
 			ins,
 			IPOINT_BEFORE, (AFUNPTR)CheckHeapStore,
 			IARG_MEMORYWRITE_EA,
