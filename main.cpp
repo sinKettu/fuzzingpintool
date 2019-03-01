@@ -55,14 +55,6 @@ VOID ImageA(IMG img, void *)
 			IARG_END
 		);
 
-		/*RTN_InsertCall
-		(
-			malloc_rtn,
-			IPOINT_AFTER, AFUNPTR(ForMallocAfter),
-			IARG_FUNCRET_EXITPOINT_REFERENCE,
-			IARG_END
-		);*/
-
 		RTN_Close(malloc_rtn);
 	}
 }
