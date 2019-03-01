@@ -11,6 +11,7 @@
 #include <fstream>
 #include <iostream>
 #include <vector>
+#include <string.h>
 
 int MallocReturnAddress = 0;
 
@@ -29,7 +30,7 @@ void ForMallocBefore(int size, int rtnaddr)
 	next.Begin = 0;
 	next.End = size;
 	MemoryWatch.push_back(next);
-	printf("Found out a malloc: 0x%08x, size: %d,", (uint32_t)rtnaddr, (UINT32)size);
+	printf("[ALLOCATION] Found out a malloc: 0x%08x, size: %d,", (uint32_t)rtnaddr, (UINT32)size);
 
 }
 
@@ -68,22 +69,20 @@ VOID ImageA(IMG img, void *)
 
 void GetMallocSize(REG eax) 
 {
-	MemoryWatch.end()->Begin = (UINT32)eax;
-	MemoryWatch.end()->End += (UINT32)eax - 1;
+	size_t last = MemoryWatch.size() - 1;
+	MemoryWatch[last].Begin = (UINT32)eax;
+	MemoryWatch[last].End += (UINT32)eax - 1;
 	printf(" start from 0x%08x\n", (UINT32)eax);
 }
 
 void CheckHeapStore(int addr) 
 {
-	/*PIN_LockClient();
-	IMG img = IMG_FindByAddress(addr);
-	PIN_UnlockClient();*/
-	//printf("0x%08x\n", addr);
+
 	for (int i = 0; i < MemoryWatch.size(); i++)
 	{
 		if ((UINT32)addr >= MemoryWatch[i].Begin && (UINT32)addr <= MemoryWatch[i].End)
 		{
-			printf("Storing into %d area, address is 0x%08x\n", i + 1, (UINT32)addr);
+			printf("[STRORE] Storing into %d area, address is 0x%08x\n", i + 1, (UINT32)addr);
 		}
 	}
 }
@@ -94,12 +93,12 @@ void Instruction(INS ins, void*)
 	{
 		INS_InsertCall(ins, IPOINT_BEFORE, (AFUNPTR)GetMallocSize, IARG_REG_VALUE, REG_EAX, IARG_END);
 	}
-	else if (INS_MemoryOperandIsWritten(ins, 0) && INS_OperandCount(ins) > 1)
+	else if (/*INS_Address(ins) < 0x70000000 && */INS_Opcode(ins) == XED_ICLASS_MOV && INS_IsMemoryWrite(ins))
 	{
 		INS_InsertCall(
 			ins,
 			IPOINT_BEFORE, (AFUNPTR)CheckHeapStore,
-			IARG_MEMORYOP_EA, 0,
+			IARG_MEMORYWRITE_EA,
 			IARG_END
 		);
 	}
@@ -118,12 +117,12 @@ int main(int argc, char *argv[])
 	PIN_SetSyntaxIntel();
 	IMG_AddInstrumentFunction(ImageA, 0);
 	INS_AddInstrumentFunction(Instruction, 0);
-#ifdef DEBUG
-	PIN_AddFiniFunction(Fini, 0);
-#endif
+
+//	PIN_AddFiniFunction(Fini, 0);
+
 	PIN_StartProgram();
 
 	return 0;
 }
 
-// D:\Source\pin-3.7-97619-g0d0c92f4f-msvc-windows\intel64\bin\pin.exe -t D:\Source\pin-3.7-97619-g0d0c92f4f-msvc-windows\source\tools\MyPinTool\x64\Debug\MyPinTool.dll -- D:\Source\TestForPin\x64\Debug\TestForPin.exe
+// INS_IsStackWrite
