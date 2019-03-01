@@ -72,13 +72,13 @@ void GetAllocatedArea(REG eax)
 }
 
 // Is the instruction a storing into allocated heap areas?
-void CheckHeapStore(int addr) 
+void CheckHeapStore(int addr, UINT32 mws) 
 {
 	for (int i = 0; i < MemoryWatch.size(); i++)
 	{
 		if ((UINT32)addr >= MemoryWatch[i].Begin && (UINT32)addr <= MemoryWatch[i].End)
 		{
-			printf("[STRORE] Storing into %d area, address is 0x%08x\n", i + 1, (UINT32)addr);
+			printf("[STRORE] Storing %d bytes into %d area, address is 0x%08x\n", mws, i + 1, (UINT32)addr);
 		}
 	}
 }
@@ -97,6 +97,7 @@ void Instruction(INS ins, void*)
 			ins,
 			IPOINT_BEFORE, (AFUNPTR)CheckHeapStore,
 			IARG_MEMORYWRITE_EA,
+			IARG_UINT32, INS_MemoryWriteSize(ins),
 			IARG_END
 		);
 	}
