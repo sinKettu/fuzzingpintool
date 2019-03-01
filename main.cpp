@@ -1,10 +1,3 @@
-//
-//  Jonathan Salwan - Copyright (C) 2013-09
-// 
-//  http://shell-storm.org
-//  http://twitter.com/JonathanSalwan
-//
-//
 
 #include "pin.H"
 #include <asm/unistd.h>
@@ -148,6 +141,7 @@ void Instruction(INS ins, void*)
 			IARG_END
 		);
 	}
+	// Confirm that free is successful
 	else if (INS_Address(ins) == FreeReturnAddress && MonitoringFreeAddress != 0)
 	{
 		INS_InsertCall
@@ -157,7 +151,7 @@ void Instruction(INS ins, void*)
 			IARG_END
 		);
 	}
-	// if we've got mov some data to memory, let's check for storing into heap
+	// if we've got 'mov' some data to memory, let's check for storing into heap
 	else if (/*INS_Address(ins) < 0x70000000 && */INS_Opcode(ins) == XED_ICLASS_MOV && INS_IsMemoryWrite(ins))
 	{
 		INS_InsertCall
