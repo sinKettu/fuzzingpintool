@@ -6,14 +6,19 @@
 #include <vector>
 #include <string.h>
 
+UINT32
 // Watch where malloc returns allocated base
-UINT32 MallocReturnAddress = 0;
+MallocReturnAddress = 0,
 
 // Watch where free returns to know about success
-UINT32 FreeReturnAddress = 0;
+FreeReturnAddress = 0,
 
 // Remember what base is gonna be cleared
-UINT32 MonitoringFreeAddress = 0;
+MonitoringFreeAddress = 0,
+
+// Min allocated base and max end of allocated area
+HeapMin = UINT32_MAX,
+HeapMax = 0;
 
 // Structure with allocated base and allocated base + size of allocated area and alloc-flag
 struct HeapAllocated
@@ -44,7 +49,7 @@ void ForMallocBefore(int size, int rtnaddr)
 void ForFreeBefore(UINT32 free_addr, UINT32 rtn_addr)
 {
 	MonitoringFreeAddress = free_addr;
-	FreeReturnAddress = rtn_addr;
+	FreeReturnAddress	  = rtn_addr;
 }
 
 // Searching mallocs
@@ -94,6 +99,11 @@ void GetAllocatedArea(REG eax)
 	MemoryWatch[last].End += (UINT32)eax - 1;
 	MemoryWatch[last].Allocated = true;
 
+	if (HeapMin > MemoryWatch[last].Begin)
+		HeapMin = MemoryWatch[last].Begin;
+	if (HeapMax < MemoryWatch[last].End)
+		HeapMax = MemoryWatch[last].End;
+
 	printf(" start from 0x%08x\n", (UINT32)eax);
 
 	MallocReturnAddress = 0;
@@ -102,6 +112,16 @@ void GetAllocatedArea(REG eax)
 // Is the instruction a storing into allocated heap areas?
 void CheckHeapStore(int addr, UINT32 mws, int ins_addr, const std::string *s) 
 {
+	if (!(addr >= HeapMin - 1 && addr <= HeapMax + 1))
+		return;
+
+	if (addr == HeapMin - 1 || addr == HeapMax + 1)
+	{
+		printf("[HEAP OVERFLOW] Overflow possible. Instruction address is 0x%08x\n", ins_addr);
+		printf("[HEAP OVERFLOW] %s\n", (*s).c_str());
+		return;
+	}
+
 	for (size_t i = 0; i < MemoryWatch.size(); i++)
 	{
 		if ((UINT32)addr >= MemoryWatch[i].Begin && (UINT32)addr <= MemoryWatch[i].End)
@@ -109,7 +129,7 @@ void CheckHeapStore(int addr, UINT32 mws, int ins_addr, const std::string *s)
 			if (MemoryWatch[i].Allocated)
 			{
 				printf("[STRORE] Storing %d bytes into %d area, address is 0x%08x\n", mws, i + 1, (UINT32)addr);
-				if ((UINT32)addr + mws > MemoryWatch[i].End)
+				if ((UINT32)addr + mws - 1 > MemoryWatch[i].End)
 				{
 					printf("\t[HEAP OVERFLOW] Overflow possible. Instruction address is 0x%08x\n", ins_addr);
 					printf("\t[HEAP OVERFLOW] %s\n", (*s).c_str());
@@ -117,11 +137,28 @@ void CheckHeapStore(int addr, UINT32 mws, int ins_addr, const std::string *s)
 			}
 			else
 			{
-				printf("\t[HEAP OVERFLOW] Reuse released data possible. Instruction address is 0x%08x\n", ins_addr);
-				printf("\t[HEAP OVERFLOW] %s\n", (*s).c_str());
+				printf("[HEAP OVERFLOW] Reuse released data possible. Instruction address is 0x%08x\n", ins_addr);
+				printf("[HEAP OVERFLOW] %s\n", (*s).c_str());
 			}
+			return;
 		}
+
+		// One not very successful method to detect overflow
+		/*if (i > 0)
+		{
+			UINT32 left = min(MemoryWatch[i - 1].End, MemoryWatch[i].Begin);
+			UINT32 right = max(MemoryWatch[i - 1].End, MemoryWatch[i].Begin);
+			if ((UINT32)addr > left && (UINT32)addr < right)
+			{
+				printf("\t[HEAP OVERFLOW] Overflow possible. Instruction address is 0x%08x\n", ins_addr);
+				printf("\t[HEAP OVERFLOW] %s\n", (*s).c_str());
+				return;
+			}
+		}*/
 	}
+
+	printf("[HEAP OVERFLOW] Overflow possible. Instruction address is 0x%08x\n", ins_addr);
+	printf("[HEAP OVERFLOW] %s\n", (*s).c_str());
 }
 
 void ConfirmFree(void)
