@@ -1,8 +1,6 @@
-
 #include "pin.H"
-#include <asm/unistd.h>
-#include <fstream>
-#include <iostream>
+#include "asm/unistd.h"
+
 #include <vector>
 #include <string.h>
 
@@ -168,6 +166,20 @@ void ConfirmFree(void)
 		if (MonitoringFreeAddress == MemoryWatch[i].Begin)
 		{
 			MemoryWatch[i].Allocated = false;
+			if (MemoryWatch[i].Begin == HeapMin || MemoryWatch[i].Begin == HeapMax)
+			{
+				for (int i = 0; i < MemoryWatch.size(); i++)
+				{
+					if (MemoryWatch[i].Allocated)
+					{
+						if (MemoryWatch[i].Begin < HeapMin)
+							HeapMin = MemoryWatch[i].Begin;
+						if (MemoryWatch[i].End > HeapMax)
+							HeapMax = MemoryWatch[i].End;
+					}
+				}
+			}
+
 			printf("[FREE] Area %d with base 0x%08x is released\n", i + 1, MonitoringFreeAddress);
 			break;
 		}
