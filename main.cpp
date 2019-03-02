@@ -31,16 +31,18 @@ std::vector<HeapAllocated> MemoryWatch;
 
 // Instrumenting with this call all mallocs
 void ForMallocBefore(int size, int rtnaddr)
-{	
-	HeapAllocated next;
-	next.Begin = 0;
-	next.End = size;
-	MemoryWatch.push_back(next);
+{
+	if (rtnaddr < 0x700000000)
+	{
+		HeapAllocated next;
+		next.Begin = 0;
+		next.End = size;
+		MemoryWatch.push_back(next);
 
-	MallocReturnAddress = rtnaddr;
-	
-	printf("[ALLOCATION] Found out a malloc: 0x%08x, size: %d,", (uint32_t)rtnaddr, (UINT32)size);
+		MallocReturnAddress = rtnaddr;
 
+		printf("[ALLOCATION] Found out a malloc: 0x%08x, size: %d,", (uint32_t)rtnaddr, (UINT32)size);
+	}
 }
 
 // Instrumenting free calls
@@ -214,7 +216,7 @@ void Instruction(INS ins, void*)
 		);
 	}
 	// if we've got 'mov' some data to memory, let's check for storing into heap
-	else if ((UINT32)INS_Address(ins) < 0x70000000 && INS_Opcode(ins) == XED_ICLASS_MOV && INS_MemoryOperandIsWritten(ins, 0))
+	else if ((UINT32)INS_Address(ins) < 0x70000000 /*&& INS_Opcode(ins) == XED_ICLASS_MOV*/ && INS_MemoryOperandIsWritten(ins, 0))
 	{
 		INS_InsertCall
 		(
