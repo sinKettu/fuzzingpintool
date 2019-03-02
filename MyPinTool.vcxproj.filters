@@ -23,5 +23,13 @@
     <ClCompile Include="main.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="MallocFreeOverlows.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="MallocFreeOverlows.h">
+      <Filter>Documents</Filter>
+    </ClInclude>
   </ItemGroup>
 </Project>
