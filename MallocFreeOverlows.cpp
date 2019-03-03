@@ -214,7 +214,7 @@ void MallocFreeOverflows_Instruction(INS ins, void*)
 			IARG_END
 		);
 	}
-	// if we've got 'mov' some data to memory, let's check for storing into heap
+	// if we've got writting some data to memory, let's check for storing into heap
 	else if ((UINT32)INS_Address(ins) < 0x70000000 /*&& INS_Opcode(ins) == XED_ICLASS_MOV*/ && INS_MemoryOperandIsWritten(ins, 0))
 	{
 		INS_InsertCall
