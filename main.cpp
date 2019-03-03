@@ -15,6 +15,7 @@ struct Routine
 };
 
 std::vector<Routine> rtnStack;
+Routine *Head = nullptr;
 
 VOID DenoteRoutine(const std::string *rtnName, UINT32 rtnAddress, UINT64 rtnSize)
 {
@@ -26,7 +27,9 @@ VOID DenoteRoutine(const std::string *rtnName, UINT32 rtnAddress, UINT64 rtnSize
 			CurrentRoutine.StackEnd		= UINT32_MAX;
 
 	rtnStack.push_back(CurrentRoutine);
-	printf("!!!\n");
+	Head = &rtnStack[rtnStack.size() - 1];
+	/*if (rtnName->find("main") != std::string::npos)
+		printf("\n\n\n!!!\n\n\n");*/
 }
 
 VOID StackOverflows_Routine(RTN rtn, void *)
@@ -51,47 +54,80 @@ VOID StackOverflows_Routine(RTN rtn, void *)
 
 VOID PopRoutine(void)
 {
-	size_t last = rtnStack.size() - 1;
-	printf("%s. base: 0x%08x, head: 0x%08x\n", rtnStack[last].Name, rtnStack[last].StackBegin, rtnStack[last].StackEnd);
-	if (!rtnStack.empty())
+	//printf("ret\n");
+	if (Head != nullptr)
+	{
+		//if (Head->Name.find("main") != std::string::npos)
+		if (Head->StackBegin != UINT32_MAX && Head->StackEnd != UINT32_MAX)
+		{
+			//printf("%s 0x%08x 0x%08x\n", Head->Name.c_str(), Head->StackBegin, Head->StackEnd);
+		}
+		Head--;
 		rtnStack.pop_back();
+		if (rtnStack.empty())
+			Head = nullptr;
+	}
 }
 
 VOID MonitorRegs(UINT32 ebp, UINT32 esp)
 {
-	size_t last = rtnStack.size() - 1;
-	if (!rtnStack.empty() && rtnStack[last].StackBegin == UINT32_MAX && rtnStack[last].StackEnd == UINT32_MAX)
+	//printf("mon\n");
+	if (Head != nullptr)
 	{
-		rtnStack[last].StackBegin = ebp;
-		rtnStack[last].StackEnd = esp;
-	}
-	else if (!rtnStack.empty() && rtnStack[last].StackBegin != UINT32_MAX && rtnStack[last].StackEnd != UINT32_MAX)
-	{
-		if (ebp == esp && ebp < rtnStack[last].StackBegin)
+		if (Head->StackBegin == UINT32_MAX && Head->StackEnd == UINT32_MAX)
 		{
-			rtnStack[last].StackBegin = ebp;
+			Head->StackBegin = ebp;
+			Head->StackEnd = esp;
 		}
-		else if (esp < ebp && rtnStack[last].StackBegin == ebp)
+		else
 		{
-			rtnStack[last].StackEnd = esp;
+			if (ebp == esp && ebp < Head->StackBegin)
+				Head->StackBegin = ebp;
+			else if (esp < ebp && Head->StackBegin == ebp)
+				Head->StackEnd = ebp;
 		}
-		printf("%s. base: 0x%08x, head: 0x%08x\n", rtnStack[last].Name, rtnStack[last].StackBegin, rtnStack[last].StackEnd);
 	}
 }
 
 VOID MonitorStackStoring(UINT32 addr, UINT32 insAddr)
 {
-	printf("sttr\n");
-	size_t last = rtnStack.size() - 1;
-	if (last >= 0 && rtnStack[last].StackEnd < rtnStack[last].StackBegin && (addr >= rtnStack[last].StackEnd && addr <= rtnStack[last].StackBegin))
+	if (Head != nullptr && Head->StackEnd < Head->StackBegin && (addr >= Head->StackEnd && addr <= Head->StackBegin))
 	{
-		printf("[STACK] 0x%08x: Storing into \"%s\" stack with address 0x%08x\n", insAddr, rtnStack[last].Name.c_str(), addr);
+		printf("[STACK] 0x%08x: Storing into \"%s\" stack with address 0x%08x\n", insAddr, Head->Name.c_str(), addr);
 	}
 }
 
 VOID StackOverflows_Instruction(INS ins, void*)
 {
 	if (INS_IsRet(ins))
+	{
+		INS_InsertCall(ins, IPOINT_BEFORE, (AFUNPTR)PopRoutine, IARG_END);
+	}
+	else if (INS_IsStackWrite(ins))
+	{
+		INS_InsertCall
+		(
+			ins,
+			IPOINT_BEFORE, (AFUNPTR)MonitorStackStoring,
+			IARG_MEMORYWRITE_EA,
+			IARG_ADDRINT, INS_Address(ins),
+			IARG_END
+		);
+	}
+	else
+	{
+		INS_InsertCall
+		(
+			ins,
+			IPOINT_BEFORE, (AFUNPTR)MonitorRegs,
+			IARG_REG_VALUE, REG_EBP,
+			IARG_REG_VALUE, REG_ESP,
+			IARG_END
+		);
+
+	}
+
+	/*if (INS_IsRet(ins))
 	{
 		INS_InsertCall(ins, IPOINT_BEFORE, (AFUNPTR)PopRoutine, IARG_END);
 	}
@@ -116,7 +152,7 @@ VOID StackOverflows_Instruction(INS ins, void*)
 			IARG_REG_VALUE, REG_ESP,
 			IARG_END
 		);
-	}
+	}*/
 	
 }
 
