@@ -8,40 +8,80 @@
 struct Routine
 {
 	std::string Name;
-	UINT32 Head;
 	UINT32 StackBegin;
 	UINT32 StackEnd;
+	BOOL Empty;
 };
 
-//std::vector<Routine> rtnStack;
-//Routine *Head = nullptr;
-Routine CurrentRoutine;
+std::vector<Routine> rtnStack;
 
-VOID DenoteRoutine(const std::string *rtnName, UINT32 headAddr)
+VOID RtnBegin(const std::string *ins, const std::string *ins_n)
 {
-	
-	printf("%s\n", *rtnName->c_str());
-	CurrentRoutine.Name = *rtnName;
-	CurrentRoutine.Head = headAddr;
-	CurrentRoutine.StackBegin = UINT32_MAX;
-	CurrentRoutine.StackEnd = UINT32_MAX;
+	Routine current;
+	current.Empty = true;
+	rtnStack.push_back(current);
 }
 
-VOID StackOverflows_Routine(RTN rtn, void *)
+VOID RtnEnd()
 {
-	printf("*\n");
-	if (RTN_Valid(rtn))
+	if (!rtnStack.empty())
+		rtnStack.pop_back();
+}
+
+VOID StackWriteHandle(UINT32 addr, RTN *rtn, UINT32 ebp, UINT32 esp)
+{
+	if (!rtnStack.empty())
 	{
-		printf("!\n");
-		RTN_Open(rtn);
-		RTN_InsertCall(
-			rtn, 
-			IPOINT_BEFORE, (AFUNPTR)DenoteRoutine, 
-			IARG_PTR, new std::string(RTN_Name(rtn)), 
-			IARG_ADDRINT, INS_Address((RTN_InsHead(rtn))),
+		if (rtnStack.back().Empty && RTN_Valid(*rtn))
+		{
+			rtnStack.back().Name = RTN_Name(*rtn);
+			//rtnStack.back().Head = INS_Address(RTN_InsHead(*rtn));
+			rtnStack.back().StackBegin = ebp;
+			rtnStack.back().StackEnd = esp;
+			rtnStack.back().Empty = false;
+		}
+		
+		printf("[STACK] Store in \"%s\ starting from 0x%08x with stack borders 0x%08x:0x%08x at 0x%08x\n", rtnStack.back().Name.c_str(), rtnStack.back().StackEnd, rtnStack.back().StackBegin);
+	}
+}
+
+VOID StackOverflows_Instruction(INS ins, void*)
+{
+	if (INS_IsCall(ins))
+	{
+		INS_InsertCall
+		(
+			ins,
+			IPOINT_BEFORE, (AFUNPTR) RtnBegin,
 			IARG_END
 		);
-		RTN_Close(rtn);
+	}
+	else if (INS_IsRet(ins))
+	{
+		INS_InsertCall
+		(
+			ins,
+			IPOINT_BEFORE, (AFUNPTR)RtnEnd,
+			IARG_END
+		);
+	}
+	else if (INS_IsStackWrite(ins) && INS_Opcode(ins) == XED_ICLASS_MOV)
+	{
+		//RTN cur_rtn = INS_Rtn(ins);
+		INS_InsertCall
+		(
+			ins,
+			IPOINT_BEFORE, (AFUNPTR)StackWriteHandle,
+			IARG_MEMORYOP_EA, 0,
+			IARG_PTR, new RTN(INS_Rtn(ins)),
+			IARG_REG_VALUE, REG_EBP,
+			IARG_REG_VALUE, REG_ESP,
+			IARG_END
+		);
+	}
+	else
+	{
+		//
 	}
 }
 
@@ -62,7 +102,8 @@ int main(int argc, char *argv[])
 
 	//IMG_AddInstrumentFunction(StackOverflows_Image, 0);
 	//INS_AddInstrumentFunction(StackOverflows_Instruction, 0);
-	RTN_AddInstrumentFunction(StackOverflows_Routine, 0);
+	//RTN_AddInstrumentFunction(StackOverflows_Routine, 0);
+	INS_AddInstrumentFunction(StackOverflows_Instruction, 0);
 
 //	PIN_AddFiniFunction(Fini, 0);
 
