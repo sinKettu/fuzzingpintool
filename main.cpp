@@ -41,7 +41,7 @@ VOID StackWriteHandle(UINT32 addr, RTN *rtn, UINT32 ebp, UINT32 esp)
 			rtnStack.back().Empty = false;
 		}
 		
-		printf("[STACK] Store in \"%s\ starting from 0x%08x with stack borders 0x%08x:0x%08x at 0x%08x\n", rtnStack.back().Name.c_str(), rtnStack.back().StackEnd, rtnStack.back().StackBegin);
+		printf("[STACK] Store in \"%s\" with stack borders 0x%08x:0x%08x at 0x%08x\n", rtnStack.back().Name.c_str(), rtnStack.back().StackEnd, rtnStack.back().StackBegin, addr);
 	}
 }
 
