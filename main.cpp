@@ -28,20 +28,22 @@ VOID RtnEnd()
 		rtnStack.pop_back();
 }
 
-VOID StackWriteHandle(UINT32 addr, RTN *rtn, UINT32 ebp, UINT32 esp)
+VOID StackWriteHandle(RTN *rtn, UINT32 storeAddr, UINT32 opSize, UINT32 ebp, UINT32 esp)
 {
 	if (!rtnStack.empty())
 	{
 		if (rtnStack.back().Empty && RTN_Valid(*rtn))
 		{
 			rtnStack.back().Name = RTN_Name(*rtn);
-			//rtnStack.back().Head = INS_Address(RTN_InsHead(*rtn));
 			rtnStack.back().StackBegin = ebp;
 			rtnStack.back().StackEnd = esp;
 			rtnStack.back().Empty = false;
 		}
-		
-		printf("[STACK] Store in \"%s\" with stack borders 0x%08x:0x%08x at 0x%08x\n", rtnStack.back().Name.c_str(), rtnStack.back().StackEnd, rtnStack.back().StackBegin, addr);
+
+		if (storeAddr >= rtnStack.back().StackEnd && storeAddr <= rtnStack.back().StackBegin)
+		{
+			printf("[STACK] Store in \"%s\" with stack borders 0x%08x:0x%08x %d bytes at 0x%08x\n", rtnStack.back().Name.c_str(), rtnStack.back().StackEnd, rtnStack.back().StackBegin, opSize, storeAddr);
+		}
 	}
 }
 
@@ -65,15 +67,15 @@ VOID StackOverflows_Instruction(INS ins, void*)
 			IARG_END
 		);
 	}
-	else if (INS_IsStackWrite(ins) && INS_Opcode(ins) == XED_ICLASS_MOV)
+	else if (INS_IsMemoryWrite(ins) && INS_OperandCount(ins) == 2)
 	{
-		//RTN cur_rtn = INS_Rtn(ins);
 		INS_InsertCall
 		(
 			ins,
 			IPOINT_BEFORE, (AFUNPTR)StackWriteHandle,
-			IARG_MEMORYOP_EA, 0,
 			IARG_PTR, new RTN(INS_Rtn(ins)),
+			IARG_MEMORYWRITE_EA,
+			IARG_MEMORYWRITE_SIZE,
 			IARG_REG_VALUE, REG_EBP,
 			IARG_REG_VALUE, REG_ESP,
 			IARG_END
