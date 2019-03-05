@@ -4,6 +4,9 @@
 
 #include <string>
 #include <vector>
+#include <map>
+
+typedef std::map<UINT32, UINT32> VariablesMap;
 
 struct Routine
 {
@@ -11,6 +14,7 @@ struct Routine
 	UINT32 StackBegin;
 	UINT32 StackEnd;
 	BOOL Empty;
+	VariablesMap Variables;
 };
 
 std::vector<Routine> rtnStack;
@@ -25,25 +29,41 @@ VOID RtnBegin(const std::string *ins, const std::string *ins_n)
 VOID RtnEnd()
 {
 	if (!rtnStack.empty())
+	{
+		if (!rtnStack.back().Empty)
+		{
+			printf("[STACK] Routine \"%s\" with stack 0x%08x:0x%08x has variables:\n", rtnStack.back().Name.c_str(), rtnStack.back().StackEnd, rtnStack.back().StackBegin);
+			VariablesMap::iterator iter;
+			for (iter = rtnStack.back().Variables.begin(); iter != rtnStack.back().Variables.end(); iter++)
+			{
+				printf("\t0x%08x: %d bytes\n", iter->first, iter->second);
+			}
+		}
 		rtnStack.pop_back();
+	}
+		
 }
 
 VOID StackWriteHandle(RTN *rtn, UINT32 storeAddr, UINT32 insAddr, UINT32 opSize, UINT32 ebp, UINT32 esp)
 {
 	if (!rtnStack.empty())
 	{
-		if (rtnStack.back().Empty && RTN_Valid(*rtn))
+		if (rtnStack.back().Empty && RTN_Valid(*rtn) && ebp > esp)
 		{
 			rtnStack.back().Name = RTN_Name(*rtn);
 			rtnStack.back().StackBegin = ebp;
 			rtnStack.back().StackEnd = esp;
 			rtnStack.back().Empty = false;
 		}
-
-		if (storeAddr >= rtnStack.back().StackEnd && storeAddr <= rtnStack.back().StackBegin)
+		else if (!rtnStack.back().Empty && storeAddr >= rtnStack.back().StackEnd && storeAddr <= rtnStack.back().StackBegin)
 		{
-			printf("[STACK] 0x%08x: Store in \"%s\" with stack borders 0x%08x:0x%08x %d bytes at 0x%08x\n", insAddr, rtnStack.back().Name.c_str(), rtnStack.back().StackEnd, rtnStack.back().StackBegin, opSize, storeAddr);
+			VariablesMap::iterator iter = rtnStack.back().Variables.find(storeAddr);
+			if (iter == rtnStack.back().Variables.end())
+			{
+				rtnStack.back().Variables.insert(std::pair<UINT32, UINT32>(storeAddr, opSize));
+			}
 		}
+		
 	}
 }
 
