@@ -8,6 +8,13 @@
 
 typedef std::map<UINT32, UINT32> VariablesMap;
 
+struct Store
+{
+	UINT32 StoreAddress;
+	UINT32 InstructionAddress;
+	UINT32 Size;
+};
+
 struct Routine
 {
 	std::string Name;
@@ -18,6 +25,7 @@ struct Routine
 };
 
 std::vector<Routine> rtnStack;
+std::vector<Store> doubtfulStores;
 
 VOID RtnBegin()
 {
@@ -30,10 +38,33 @@ VOID RtnEnd()
 {
 	if (!rtnStack.empty())
 	{
-		if (!rtnStack.back().Empty)
+		if (!rtnStack.back().Empty && !rtnStack.back().Variables.empty())
 		{
 			printf("[STACK] Routine \"%s\" with stack 0x%08x:0x%08x has variables:\n", rtnStack.back().Name.c_str(), rtnStack.back().StackEnd, rtnStack.back().StackBegin);
 			VariablesMap::iterator iter;
+
+			for (int i = 0; i < doubtfulStores.size(); i++)
+			{
+				bool overflow = false;
+				for (UINT32 addr = doubtfulStores[i].StoreAddress + 1; addr < doubtfulStores[i].StoreAddress + doubtfulStores[i].Size; addr++)
+				{
+					iter = rtnStack.back().Variables.find(addr);
+					if (iter != rtnStack.back().Variables.end())
+					{
+						overflow = true;
+						break;
+					}
+				}
+				if (overflow)
+					printf("\t\t[Doubtful] Storing %d bytes at 0x%08x into 0x%08x\n", doubtfulStores[i].Size, doubtfulStores[i].InstructionAddress, doubtfulStores[i].StoreAddress);
+				else if (doubtfulStores[i].Size > rtnStack.back().Variables[doubtfulStores[i].StoreAddress])
+				{
+					rtnStack.back().Variables[doubtfulStores[i].StoreAddress] = doubtfulStores[i].Size;
+				}
+					
+			}
+			doubtfulStores.clear();
+
 			for (iter = rtnStack.back().Variables.begin(); iter != rtnStack.back().Variables.end(); iter++)
 			{
 				printf("\t0x%08x: %d bytes\n", iter->first, iter->second);
@@ -62,8 +93,15 @@ VOID StackWriteHandle(RTN *rtn, UINT32 storeAddr, UINT32 insAddr, UINT32 opSize,
 			{
 				rtnStack.back().Variables.insert(std::pair<UINT32, UINT32>(storeAddr, opSize));
 			}
+			else if(opSize > iter->second)
+			{
+				Store store;
+				store.InstructionAddress = insAddr;
+				store.StoreAddress = storeAddr;
+				store.Size = opSize;
+				doubtfulStores.push_back(store);
+			}
 		}
-		
 	}
 }
 
