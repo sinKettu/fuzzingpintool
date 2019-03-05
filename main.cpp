@@ -19,7 +19,7 @@ struct Routine
 
 std::vector<Routine> rtnStack;
 
-VOID RtnBegin(const std::string *ins, const std::string *ins_n)
+VOID RtnBegin()
 {
 	Routine current;
 	current.Empty = true;
