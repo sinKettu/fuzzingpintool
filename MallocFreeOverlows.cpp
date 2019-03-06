@@ -50,11 +50,62 @@ void ForFreeBefore(UINT32 free_addr, UINT32 rtn_addr)
 	FreeReturnAddress = rtn_addr;
 }
 
+VOID RtlCreateHeap_handle(void * base, UINT32 resSize, UINT32 comSize)
+{
+	if (base != NULL)
+	{
+		printf("base is 0x%08x\n", base);
+	}
+	else
+	{
+		printf("'HeapBase' arg is NULL\n");
+	}
+
+	if (resSize == 0 && comSize == 0)
+	{
+		resSize = 64 * PAGE_SIZE;
+		comSize = PAGE_SIZE;
+	}
+	else if (resSize == 0 && comSize != 0)
+	{
+		if (comSize % (PAGE_SIZE * 16) == 0)
+		{
+			resSize = comSize;
+		}
+		else if (comSize % PAGE_SIZE == 0)
+		{
+			resSize = comSize;
+			while (resSize % (PAGE_SIZE * 16) != 0)
+				resSize += PAGE_SIZE;
+		}
+		else
+		{
+			UINT32 mod = comSize % PAGE_SIZE;
+			resSize = comSize + (comSize - mod);
+			while (resSize % (PAGE_SIZE * 16) != 0)
+				resSize += PAGE_SIZE;
+		}
+		
+	}
+	else if (resSize != 0 && comSize == 0)
+	{
+		comSize = PAGE_SIZE;
+	}
+	else
+	{
+		if (comSize > resSize)
+			comSize = resSize;
+	}
+
+	printf("Reserved size is %d bytes\nCommited Size is %d bytes\n", resSize, comSize);
+}
+
 // Searching mallocs
 VOID MallocFreeOverflows_Image(IMG img, void *)
 {
 	RTN malloc_rtn = RTN_FindByName(img, "malloc");
 	RTN free_rtn = RTN_FindByName(img, "free");
+	RTN RtlCreateHeap_rtn = RTN_FindByName(img, "RtlCreateHeap");
 
 	if (RTN_Valid(malloc_rtn))
 	{
@@ -86,6 +137,21 @@ VOID MallocFreeOverflows_Image(IMG img, void *)
 		);
 
 		RTN_Close(free_rtn);
+	}
+
+	if (RTN_Valid(RtlCreateHeap_rtn))
+	{
+		RTN_Open(RtlCreateHeap_rtn);
+		RTN_InsertCall
+		(
+			RtlCreateHeap_rtn,
+			IPOINT_BEFORE, (AFUNPTR)RtlCreateHeap_handle,
+			IARG_FUNCARG_ENTRYPOINT_VALUE, 1,
+			IARG_FUNCARG_ENTRYPOINT_VALUE, 2,
+			IARG_FUNCARG_ENTRYPOINT_VALUE, 3,
+			IARG_END
+		);
+		RTN_Close(RtlCreateHeap_rtn);
 	}
 }
 

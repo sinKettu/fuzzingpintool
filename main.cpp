@@ -14,13 +14,13 @@ int main(int argc, char *argv[])
 
 	PIN_SetSyntaxIntel();
 	
-	//IMG_AddInstrumentFunction(MallocFreeOverflows_Image, 0);
-	//INS_AddInstrumentFunction(MallocFreeOverflows_Instruction, 0);
+	IMG_AddInstrumentFunction(MallocFreeOverflows_Image, 0);
+	INS_AddInstrumentFunction(MallocFreeOverflows_Instruction, 0);
 
 	//IMG_AddInstrumentFunction(StackOverflows_Image, 0);
 	//INS_AddInstrumentFunction(StackOverflows_Instruction, 0);
 	//RTN_AddInstrumentFunction(StackOverflows_Routine, 0);
-	INS_AddInstrumentFunction(StackOverflows_Instruction, 0);
+	//INS_AddInstrumentFunction(StackOverflows_Instruction, 0);
 
 //	PIN_AddFiniFunction(Fini, 0);
 
