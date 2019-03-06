@@ -26,10 +26,13 @@
     <ClCompile Include="MallocFreeOverlows.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="StackDetecting.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="MallocFreeOverlows.h">
-      <Filter>Documents</Filter>
+    <ClInclude Include="FuzzingPinTool.h">
+      <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>
 </Project>
