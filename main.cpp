@@ -22,7 +22,7 @@ int main(int argc, char *argv[])
 	//RTN_AddInstrumentFunction(StackOverflows_Routine, 0);
 	//INS_AddInstrumentFunction(StackOverflows_Instruction, 0);
 
-//	PIN_AddFiniFunction(Fini, 0);
+	PIN_AddFiniFunction(MallocFreeOverflows_Fini, 0);
 
 	PIN_StartProgram();
 
