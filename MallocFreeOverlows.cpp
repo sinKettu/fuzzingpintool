@@ -2,6 +2,10 @@
 #include <vector>
 #include <string.h>
 
+#define		AllocatedArea					std::pair<UINT32, UINT32>
+#define		MakeAllocatedArea(left, right)	std::make_pair((UINT32) left, (UINT32) right)
+#define		ForFree(iter1, iter2)			std::make_pair((std::vector<HeapAllocated>::iterator) iter1, (std::vector<AllocatedArea>::iterator) iter2);
+
 UINT32
 // Watch where RtlAllocateHeap returns allocated base
 RtlAllocateHeapReturnAddress = 0,
@@ -9,10 +13,7 @@ RtlAllocateHeapHandle = 0,
 RtlAllocateHeapSize = 0,
 
 // Watch where free returns to know about success
-FreeReturnAddress = 0,
-
-// Remember what base is gonna be cleared
-MonitoringFreeAddress = 0;
+FreeReturnAddress = 0;
 
 // Structure with allocated base and allocated base + size of allocated area and alloc-flag
 struct HeapAllocated
@@ -20,12 +21,14 @@ struct HeapAllocated
 	UINT32 Handle;
 	UINT32 Min;
 	UINT32 Max;
-	std::vector<std::pair<UINT32, UINT32>> Borders;
+	std::vector<AllocatedArea> Borders;
 };
 
+// Rewrite with Map
 std::vector<HeapAllocated> Heaps;
+std::pair< std::vector<HeapAllocated>::iterator, std::vector<AllocatedArea>::iterator> ReferencesForFree;
 
-VOID RtlCreateHeap_handle(void * base, UINT32 resSize, UINT32 comSize)
+/*VOID RtlCreateHeap_handle(void * base, UINT32 resSize, UINT32 comSize)
 {
 	if (base != NULL)
 	{
@@ -73,13 +76,13 @@ VOID RtlCreateHeap_handle(void * base, UINT32 resSize, UINT32 comSize)
 	}
 
 	printf("Reserved size is %d bytes\nCommited Size is %d bytes\n", resSize, comSize);
-}
+}*/
 
 VOID RtlAllocateHeap_openHandle(UINT32 handle, UINT32 size, UINT32 rtnAddr)
 {
 	RtlAllocateHeapReturnAddress = rtnAddr;
-	RtlAllocateHeapHandle = handle;
-	RtlAllocateHeapSize = size;
+	RtlAllocateHeapHandle		 = handle;
+	RtlAllocateHeapSize			 = size;
 }
 
 VOID RtlAllocateHeap_closeHandle(UINT32 addr)
@@ -91,7 +94,7 @@ VOID RtlAllocateHeap_closeHandle(UINT32 addr)
 		head.Handle = RtlAllocateHeapHandle;
 		head.Min = addr;
 		head.Max = addr + RtlAllocateHeapSize - 1;
-		head.Borders.push_back(std::make_pair(head.Min, head.Max));
+		head.Borders.push_back(MakeAllocatedArea(head.Min, head.Max));
 		Heaps.push_back(head);
 	}
 	else
@@ -106,7 +109,7 @@ VOID RtlAllocateHeap_closeHandle(UINT32 addr)
 		if (iter != Heaps.end())
 		{
 			UINT32 rightBorder = addr + RtlAllocateHeapSize - 1;
-			iter->Borders.push_back(std::make_pair(addr, rightBorder));
+			iter->Borders.push_back(MakeAllocatedArea(addr, rightBorder));
 			if (addr < iter->Min)
 				iter->Min = addr;
 			if (rightBorder > iter->Max)
@@ -118,7 +121,7 @@ VOID RtlAllocateHeap_closeHandle(UINT32 addr)
 			head.Handle = RtlAllocateHeapHandle;
 			head.Min = addr;
 			head.Max = addr + RtlAllocateHeapSize - 1;
-			head.Borders.push_back(std::make_pair(head.Min, head.Max));
+			head.Borders.push_back(MakeAllocatedArea(head.Min, head.Max));
 			Heaps.push_back(head);
 		}
 	}
@@ -128,13 +131,36 @@ VOID RtlAllocateHeap_closeHandle(UINT32 addr)
 	RtlAllocateHeapSize = 0;
 }
 
+VOID RtlFreeHeap_handle(UINT32 handle, UINT32 base, UINT32 rtnAddr)
+{
+	if (!Heaps.empty())
+	{
+		std::vector<HeapAllocated>::iterator iter1;
+		for (iter1 = Heaps.begin(); iter1 != Heaps.end(); iter1++)
+		{
+			if (iter1->Handle == handle)
+			{
+				std::vector<AllocatedArea>::iterator iter2;
+				for (iter2 = iter1->Borders.begin(); iter2 != iter1->Borders.end(); iter2++)
+				{
+					if (iter2->first == base)
+						break;
+				}
+
+				if (iter2 != iter1->Borders.end())
+				{
+					ReferencesForFree = ForFree(iter1, iter2);
+					FreeReturnAddress = rtnAddr;
+				}
+			}
+		}
+	}
+}
+
 // Searching mallocs
 VOID MallocFreeOverflows_Image(IMG img, void *)
 {
 	//RTN RtlCreateHeap_rtn = RTN_FindByName(img, "RtlCreateHeap");
-	RTN RtlAllocateHeap_rtn = RTN_FindByName(img, "RtlAllocateHeap");
-	RTN RtlFreeHeap_rtn = RTN_FindByName(img, "RtlFreeHeap");
-
 	/*if (RTN_Valid(RtlCreateHeap_rtn))
 	{
 		RTN_Open(RtlCreateHeap_rtn);
@@ -150,6 +176,7 @@ VOID MallocFreeOverflows_Image(IMG img, void *)
 		RTN_Close(RtlCreateHeap_rtn);
 	}*/
 
+	RTN RtlAllocateHeap_rtn = RTN_FindByName(img, "RtlAllocateHeap");
 	if (RTN_Valid(RtlAllocateHeap_rtn))
 	{
 		RTN_Open(RtlAllocateHeap_rtn);
@@ -167,23 +194,54 @@ VOID MallocFreeOverflows_Image(IMG img, void *)
 		RTN_Close(RtlAllocateHeap_rtn);
 	}
 
+	RTN RtlFreeHeap_rtn = RTN_FindByName(img, "RtlFreeHeap");
 	if (RTN_Valid(RtlFreeHeap_rtn))
 	{
 		RTN_Open(RtlFreeHeap_rtn);
-		//RTN_InsertCall(RtlFreeHeap_rtn, IPOINT_BEFORE, (AFUNPTR)RtlFreeHeap_handle, IARG_FUNCARG_ENTRYPOINT_VALUE, 0, IARG_FUNCARG_ENTRYPOINT_VALUE, 2, IARG_RETURN_IP, IARG_END);
+		RTN_InsertCall
+		(
+			RtlFreeHeap_rtn, 
+			IPOINT_BEFORE, (AFUNPTR)RtlFreeHeap_handle, 
+			IARG_FUNCARG_ENTRYPOINT_VALUE, 0, 
+			IARG_FUNCARG_ENTRYPOINT_VALUE, 2, 
+			IARG_RETURN_IP, 
+			IARG_END
+		);
 		RTN_Close(RtlFreeHeap_rtn);
+	}
+}
+
+VOID RtlFreeHeap_closeHandle(UINT32 eax)
+{
+	if (eax)
+	{
+		ReferencesForFree.first->Borders.erase(ReferencesForFree.second);
+		FreeReturnAddress = 0;
+	}
+	{
+		// add some info about unsuccessfull free
 	}
 }
 
 void MallocFreeOverflows_Instruction(INS ins, void*)
 {
-	if (INS_Address(ins) == RtlAllocateHeapReturnAddress)
+	if (INS_Address(ins) == RtlAllocateHeapReturnAddress && RtlAllocateHeapHandle != 0)
 	{
 		INS_InsertCall
 		(
 			ins,
 			IPOINT_BEFORE, (AFUNPTR)RtlAllocateHeap_closeHandle,
 			IARG_REG_VALUE, REG_EAX,
+			IARG_END
+		);
+	}
+	else if (INS_Address(ins) == FreeReturnAddress)
+	{
+		INS_InsertCall
+		(
+			ins, 
+			IPOINT_BEFORE, (AFUNPTR)RtlFreeHeap_closeHandle, 
+			IARG_REG_VALUE, REG_EAX, 
 			IARG_END
 		);
 	}
@@ -216,12 +274,12 @@ VOID MallocFreeOverflows_Fini(INT32 code, VOID *)
 	{
 		printf("Heap 0x%08x with min allocated address 0x%08x and max allocated address 0x%08x\n", iter1->Handle, iter1->Min, iter1->Max);
 		printf("Allocations:\n");
-		std::vector<std::pair<UINT32, UINT32>>::iterator iter2;
+		std::vector<AllocatedArea>::iterator iter2;
 		for (iter2 = iter1->Borders.begin(); iter2 != iter1->Borders.end(); iter2++)
 		{
 			printf("\t0x%08x: 0x%08x (%d bytes)\n", iter2->first, iter2->second, iter2->second - iter2->first + 1);
 		}
 	}
 
-	printf("bye\n");
+	printf("\nbye\n");
 }
