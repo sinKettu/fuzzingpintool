@@ -8,17 +8,16 @@
 #define		HeapIterator					std::vector<HeapAllocated>::iterator
 #define		AreaBordersIterator				std::vector<AllocatedArea>::iterator
 #define		MakeAllocatedArea(left, right)	std::make_pair((UINT32) left, (UINT32) right)
-#define		ForFree(iter1, iter2)			std::make_pair((HeapIterator)iter1, (AreaBordersIterator)iter2);
+#define		ForFree(iter1, iter2)			std::make_pair((HeapIterator)iter1, (AreaBordersIterator)iter2)
 
 /* -=== STRUCTURES ===- */
 
-// Structure with allocated base and allocated base + size of allocated area and alloc-flag
 struct HeapAllocated
 {
 	UINT32 Handle;
 	UINT32 Min;
 	UINT32 Max;
-	std::vector<AllocatedArea> Borders;
+	std::vector<AllocatedArea> Area;
 };
 
 struct HeapOverflow
@@ -33,15 +32,24 @@ struct HeapOverflow
 UINT32
 // Watch where RtlAllocateHeap returns allocated base
 RtlAllocateHeapReturnAddress = 0,
+
+// What handle of heap is
 RtlAllocateHeapHandle = 0,
+
+// And size of allocated area
 RtlAllocateHeapSize = 0,
 
-// Watch where free returns to know about success
+// Watch where RtlFreeHeap returns to know about success
 FreeReturnAddress = 0;
 
-// Rewrite with Map
-std::vector<HeapAllocated> Heaps;
+// What area is gonna be freed
 std::pair<HeapIterator, AreaBordersIterator> ReferencesForFree;
+
+// Rewrite with Map
+// Container for Heaps info
+std::vector<HeapAllocated> Heaps;
+
+// Container for overflows info
 std::vector<HeapOverflow> HeapOverflows;
 
 /* -=== ROUTINES ===- */
@@ -105,6 +113,9 @@ VOID RtlAllocateHeap_openHandle(UINT32 handle, UINT32 size, UINT32 rtnAddr)
 
 VOID RtlAllocateHeap_closeHandle(UINT32 addr)
 {
+	if (!(RtlAllocateHeapHandle | RtlAllocateHeapReturnAddress | RtlAllocateHeapSize))
+		return;
+
 	// Optimize ???
 	if (Heaps.empty())
 	{
@@ -112,7 +123,7 @@ VOID RtlAllocateHeap_closeHandle(UINT32 addr)
 		head.Handle = RtlAllocateHeapHandle;
 		head.Min = addr;
 		head.Max = addr + RtlAllocateHeapSize - 1;
-		head.Borders.push_back(MakeAllocatedArea(head.Min, head.Max));
+		head.Area.push_back(MakeAllocatedArea(head.Min, head.Max));
 		Heaps.push_back(head);
 	}
 	else
@@ -126,8 +137,27 @@ VOID RtlAllocateHeap_closeHandle(UINT32 addr)
 
 		if (heap != Heaps.end())
 		{
+			AreaBordersIterator area;
 			UINT32 rightBorder = addr + RtlAllocateHeapSize - 1;
-			heap->Borders.push_back(MakeAllocatedArea(addr, rightBorder));
+			bool flag = false;
+			for (area = heap->Area.begin(); area != heap->Area.end(); area++)
+			{
+				if (area->first == addr)
+				{
+					flag = true;
+					break;
+				}
+			}
+
+			if (flag)	// Do not know why this is right way
+			{
+				area->second = rightBorder;
+			}
+			else
+			{
+				heap->Area.push_back(MakeAllocatedArea(addr, rightBorder));
+			}
+
 			if (addr < heap->Min)
 				heap->Min = addr;
 			if (rightBorder > heap->Max)
@@ -139,7 +169,7 @@ VOID RtlAllocateHeap_closeHandle(UINT32 addr)
 			head.Handle = RtlAllocateHeapHandle;
 			head.Min = addr;
 			head.Max = addr + RtlAllocateHeapSize - 1;
-			head.Borders.push_back(MakeAllocatedArea(head.Min, head.Max));
+			head.Area.push_back(MakeAllocatedArea(head.Min, head.Max));
 			Heaps.push_back(head);
 		}
 	}
@@ -159,13 +189,13 @@ VOID RtlFreeHeap_handle(UINT32 handle, UINT32 base, UINT32 rtnAddr)
 			if (heap->Handle == handle)
 			{
 				AreaBordersIterator area;
-				for (area = heap->Borders.begin(); area != heap->Borders.end(); area++)
+				for (area = heap->Area.begin(); area != heap->Area.end(); area++)
 				{
 					if (area->first == base)
 						break;
 				}
 
-				if (area != heap->Borders.end())
+				if (area != heap->Area.end())
 				{
 					ReferencesForFree = ForFree(heap, area);
 					FreeReturnAddress = rtnAddr;
@@ -231,17 +261,27 @@ VOID MallocFreeOverflows_Image(IMG img, void *)
 
 VOID RtlFreeHeap_closeHandle(UINT32 eax)
 {
-	if (eax)
+	if (ReferencesForFree.first->Min == ReferencesForFree.second->first || ReferencesForFree.first->Max == ReferencesForFree.second->second)
 	{
-		ReferencesForFree.first->Borders.erase(ReferencesForFree.second);
-		FreeReturnAddress = 0;
+		UINT32 Max = 0, Min = UINT32_MAX;
+		AreaBordersIterator area;
+		for (area = ReferencesForFree.first->Area.begin(); area != ReferencesForFree.first->Area.end(); area++)
+		{
+			if (area->first < Min && area != ReferencesForFree.second)
+				Min = area->first;
+			if (area->second > Max && area != ReferencesForFree.second)
+				Max = area->second;
+		}
+		ReferencesForFree.first->Min = Min;
+		ReferencesForFree.first->Max = Max;
 	}
-	{
-		// add some info about unsuccessfull free
-	}
+
+	ReferencesForFree.first->Area.erase(ReferencesForFree.second);
+	FreeReturnAddress = 0;
+	// printf("[FREE] 0x%08x\n", ReferencesForFree.second->first);
 }
 
-VOID CheckHeapStore(UINT32 storeAddr, UINT32 wrtSize, UINT32 insAddr, const std::string *disAsmIns)
+VOID CheckHeapStore(UINT32 storeAddr, UINT32 wrtSize, UINT32 insAddr)
 {
 	HeapIterator heap;
 	for (heap = Heaps.begin(); heap != Heaps.end(); heap++)
@@ -257,10 +297,11 @@ VOID CheckHeapStore(UINT32 storeAddr, UINT32 wrtSize, UINT32 insAddr, const std:
 		AreaBordersIterator area;
 		UINT32 rightEdge = storeAddr + wrtSize - 1;
 		bool success = false;
-		for (area = heap->Borders.begin(); area != heap->Borders.end(); area++)
+		for (area = heap->Area.begin(); area != heap->Area.end(); area++)
 		{
 			if (storeAddr >= area->first && rightEdge <= area->second)
 			{
+				//printf("0x%08x 0x%08x 0x%08x\n", storeAddr, area->first, area->second);
 				success = true;
 				break;
 			}
@@ -309,7 +350,7 @@ void MallocFreeOverflows_Instruction(INS ins, void*)
 			IARG_MEMORYWRITE_EA,
 			IARG_UINT32, INS_MemoryWriteSize(ins),
 			IARG_ADDRINT, INS_Address(ins),
-			IARG_PTR, new std::string(INS_Disassemble(ins)),
+			// IARG_PTR, new std::string(INS_Disassemble(ins)),
 			IARG_END
 		);
 	}
@@ -344,8 +385,8 @@ VOID MallocFreeOverflows_Fini(INT32 code, VOID *)
 	{
 		printf("Heap 0x%08x with min allocated address 0x%08x and max allocated address 0x%08x\n", heap->Handle, heap->Min, heap->Max);
 		printf("Allocations:\n");
-		std::vector<AllocatedArea>::iterator area;
-		for (area = heap->Borders.begin(); area != heap->Borders.end(); area++)
+		AreaBordersIterator area;
+		for (area = heap->Area.begin(); area != heap->Area.end(); area++)
 		{
 			printf("\t0x%08x: 0x%08x (%d bytes)\n", area->first, area->second, area->second - area->first + 1);
 		}
