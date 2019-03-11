@@ -6,9 +6,9 @@
 
 #define		AllocatedArea					std::pair<UINT32, UINT32>
 #define		HeapIterator					std::vector<HeapAllocated>::iterator
-#define		AreaBordersIterator				std::vector<AllocatedArea>::iterator
+#define		AreaIterator				std::vector<AllocatedArea>::iterator
 #define		MakeAllocatedArea(left, right)	std::make_pair((UINT32) left, (UINT32) right)
-#define		ForFree(iter1, iter2)			std::make_pair((HeapIterator)iter1, (AreaBordersIterator)iter2)
+#define		ForFree(iter1, iter2)			std::make_pair((HeapIterator)iter1, (AreaIterator)iter2)
 
 /* -=== STRUCTURES ===- */
 
@@ -43,7 +43,7 @@ RtlAllocateHeapSize = 0,
 FreeReturnAddress = 0;
 
 // What area is gonna be freed
-std::pair<HeapIterator, AreaBordersIterator> ReferencesForFree;
+std::pair<HeapIterator, AreaIterator> ReferencesForFree;
 
 // Rewrite with Map
 // Container for Heaps info
@@ -137,7 +137,7 @@ VOID RtlAllocateHeap_closeHandle(UINT32 addr)
 
 		if (heap != Heaps.end())
 		{
-			AreaBordersIterator area;
+			AreaIterator area;
 			UINT32 rightBorder = addr + RtlAllocateHeapSize - 1;
 			bool flag = false;
 			for (area = heap->Area.begin(); area != heap->Area.end(); area++)
@@ -188,7 +188,7 @@ VOID RtlFreeHeap_handle(UINT32 handle, UINT32 base, UINT32 rtnAddr)
 		{
 			if (heap->Handle == handle)
 			{
-				AreaBordersIterator area;
+				AreaIterator area;
 				for (area = heap->Area.begin(); area != heap->Area.end(); area++)
 				{
 					if (area->first == base)
@@ -264,7 +264,7 @@ VOID RtlFreeHeap_closeHandle(UINT32 eax)
 	if (ReferencesForFree.first->Min == ReferencesForFree.second->first || ReferencesForFree.first->Max == ReferencesForFree.second->second)
 	{
 		UINT32 Max = 0, Min = UINT32_MAX;
-		AreaBordersIterator area;
+		AreaIterator area;
 		for (area = ReferencesForFree.first->Area.begin(); area != ReferencesForFree.first->Area.end(); area++)
 		{
 			if (area->first < Min && area != ReferencesForFree.second)
@@ -294,7 +294,7 @@ VOID CheckHeapStore(UINT32 storeAddr, UINT32 wrtSize, UINT32 insAddr)
 
 	if (heap != Heaps.end())
 	{
-		AreaBordersIterator area;
+		AreaIterator area;
 		UINT32 rightEdge = storeAddr + wrtSize - 1;
 		bool success = false;
 		for (area = heap->Area.begin(); area != heap->Area.end(); area++)
@@ -385,7 +385,7 @@ VOID MallocFreeOverflows_Fini(INT32 code, VOID *)
 	{
 		printf("Heap 0x%08x with min allocated address 0x%08x and max allocated address 0x%08x\n", heap->Handle, heap->Min, heap->Max);
 		printf("Allocations:\n");
-		AreaBordersIterator area;
+		AreaIterator area;
 		for (area = heap->Area.begin(); area != heap->Area.end(); area++)
 		{
 			printf("\t0x%08x: 0x%08x (%d bytes)\n", area->first, area->second, area->second - area->first + 1);
