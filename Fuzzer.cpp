@@ -4,14 +4,34 @@
 #include <map>
 #include <fstream>
 #include "FuzzingPinTool.h"
+using namespace std;
 
-VOID RtnCallBefore(UINT32 headAddr, const CONTEXT *ctxt, UINT32 a, UINT32* b)
+#define ROUNDS_COUNT 10
+
+ADDRINT headInsAddr = 0;
+CONTEXT backup;
+int rouns = ROUNDS_COUNT;
+
+VOID headInsCall(ADDRINT head, CONTEXT *ctxt)
 {
-	printf("0x%08x\n", headAddr);
-	printf("EAX: 0x%08x\n", PIN_GetContextReg(ctxt, REG_EAX));
-	UINT32 *c = b;
-	//B*(c-1) = 7;
-	printf("0x%08x 0x%08x 0x%08x 0x%08x\n", PIN_GetContextReg(ctxt, REG_ESP), a, b+1, *(c+1));
+	if (headInsAddr != 0)
+		return;
+
+	headInsAddr = head;
+	PIN_SaveContext(ctxt, &backup);
+}
+
+VOID tailInsCall()
+{
+	
+	if (headInsAddr == 0 || rouns == 0)
+		return;
+
+	CONTEXT restored;
+	PIN_SaveContext(&backup, &restored);
+	PIN_SetContextReg(&restored, REG_EIP, headInsAddr);
+	rouns--;
+	PIN_ExecuteAt(&restored);
 }
 
 VOID Fuzzer_Routine(RTN rtn, void*)
@@ -20,13 +40,19 @@ VOID Fuzzer_Routine(RTN rtn, void*)
 	{
 		RTN_Open(rtn);
 		INS headIns = RTN_InsHead(rtn);
+
 		INS_InsertCall(
 			headIns,
-			IPOINT_BEFORE, (AFUNPTR)RtnCallBefore,
+			IPOINT_BEFORE, (AFUNPTR)headInsCall,
 			IARG_ADDRINT, INS_Address(headIns),
-			IARG_CONST_CONTEXT,
-			IARG_REG_VALUE, REG_ESP,
-			IARG_REG_REFERENCE, REG_ESP,
+			IARG_CONTEXT,
+			IARG_END
+		);
+
+		INS tailIns = RTN_InsTail(rtn);
+		INS_InsertCall(
+			tailIns,
+			IPOINT_BEFORE, (AFUNPTR)tailInsCall,
 			IARG_END
 		);
 		RTN_Close(rtn);
