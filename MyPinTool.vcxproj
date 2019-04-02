@@ -258,6 +258,7 @@
     <None Include="..\README" />
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="Fuzzer.cpp" />
     <ClCompile Include="main.cpp" />
     <ClCompile Include="MallocFreeOverlows.cpp" />
     <ClCompile Include="StackDetecting.cpp" />

@@ -28,7 +28,7 @@ VOID BblInstrumentation(
 	if (image != images.end())
 	{
 		SECTIONS::iterator section = image->second.find(*secName);
-		if (section != images[*imgName].end())
+		if (section != image->second.end())
 		{
 			ROUTINES::iterator routine = section->second.find(*rtnName);
 			if (routine != section->second.end())
