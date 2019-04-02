@@ -261,6 +261,7 @@
     <ClCompile Include="main.cpp" />
     <ClCompile Include="MallocFreeOverlows.cpp" />
     <ClCompile Include="StackDetecting.cpp" />
+    <ClCompile Include="Tracer.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="FuzzingPinTool.h" />
