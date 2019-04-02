@@ -25,6 +25,7 @@ int main(int argc, char *argv[])
 	//PIN_AddFiniFunction(MallocFreeOverflows_Fini, 0);
 
 	TRACE_AddInstrumentFunction(Tracer_Trace, 0);
+	PIN_AddFiniFunction(Tracer_Fini, 0);
 
 	PIN_StartProgram();
 
