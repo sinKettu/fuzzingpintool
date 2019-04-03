@@ -4,19 +4,22 @@
 #include <map>
 #include <fstream>
 #include "FuzzingPinTool.h"
+#include <time.h>
 using namespace std;
 
 #define ROUNDS_COUNT 10
 #define FUNCTION_ARGUMENTS vector<pair<ADDRINT, UINT32>>
 
 ADDRINT headInsAddr = 0;
+ADDRINT tailInsAddr = 0;
 CONTEXT backup;
 int rouns = ROUNDS_COUNT;
+
 
 ofstream fout;
 BOOL pushDetected = false;
 BOOL callDetected = false;
-BOOL prohibition = false;
+BOOL dontInstrument = false;
 FUNCTION_ARGUMENTS tmp;
 
 vector<CONTEXT> savedContexts;
@@ -73,13 +76,93 @@ VOID Fuzzer_Routine(RTN rtn, void*)
 	
 }
 
+VOID HandleHead(ADDRINT hAddr, ADDRINT tAddr, CONTEXT *ctxt)
+{
+	if (headInsAddr != 0)
+		return;
+
+	if (dontInstrument)
+	{
+		dontInstrument = false;
+		return;
+	}
+
+	PIN_SaveContext(ctxt, &backup);
+	headInsAddr = hAddr;
+	tailInsAddr = tAddr;
+	srand(time(0));
+}
+
+VOID HandleTail(ADDRINT addr, ADDRINT next)
+{
+	if (tailInsAddr != 0 && addr == tailInsAddr)
+	{
+		if (rouns != 0)
+		{
+			printf("ROUND: %d\n", ROUNDS_COUNT - rouns + 1);
+			CONTEXT tmp;
+			PIN_SaveContext(&backup, &tmp);
+			rouns--;
+			ADDRINT a = PIN_GetContextReg(&tmp, REG_ESP);
+			
+			*(reinterpret_cast<ADDRINT*>(a + 4)) = rand() & 0xffffffff;
+			PIN_ExecuteAt(&tmp);
+		}
+		else
+		{
+			headInsAddr = 0;
+			tailInsAddr = 0;
+			CONTEXT tmp;
+			PIN_SaveContext(&backup, &tmp);
+			rouns = ROUNDS_COUNT;
+			dontInstrument = true;
+			PIN_ExecuteAt(&tmp);
+		}
+	}
+}
+
 VOID Fuzzer_Image(IMG img, void*)
 {
 	if (IMG_IsMainExecutable(img))
 	{
-		fout.open("test.txt", ios::app);
-		fout << IMG_Name(img) << "\n";
-		fout.close();
+		SEC sec = IMG_SecHead(img);
+		for (sec; SEC_Valid(sec); sec = SEC_Next(sec))
+		{
+			if (SEC_Name(sec).compare(".text") == 0)
+			{
+				RTN rtn = SEC_RtnHead(sec);
+				for (rtn; RTN_Valid(rtn); rtn = RTN_Next(rtn))
+				{
+					if (RTN_Name(rtn).compare("print_test") != 0)
+						continue;
+
+					printf("%s\n", RTN_Name(rtn).c_str());
+					RTN_Open(rtn);
+					INS head = RTN_InsHead(rtn);
+					INS next = INS_Next(head);
+					INS tail = RTN_InsTail(rtn);
+					
+					INS_InsertCall(
+						head,
+						IPOINT_BEFORE, (AFUNPTR)HandleHead,
+						IARG_ADDRINT, INS_Address(head),
+						IARG_ADDRINT, INS_Address(tail),
+						IARG_CONTEXT,
+						IARG_END
+					);
+
+					INS_InsertCall(
+						tail,
+						IPOINT_BEFORE, (AFUNPTR)HandleTail,
+						IARG_ADDRINT, INS_Address(tail),
+						IARG_ADDRINT, INS_Address(next),
+						IARG_END
+					);
+
+					RTN_Close(rtn);
+				}
+			}
+		}
 	}
 }
 
@@ -196,7 +279,7 @@ VOID Fuzzer_Instrunction(INS ins, void*)
 	if (!(IMG_Valid(img) && IMG_IsMainExecutable(img)))
 		return;
 
-	if (INS_Opcode(ins) == XED_ICLASS_PUSH && !prohibition)
+	if (INS_Opcode(ins) == XED_ICLASS_PUSH )
 	{
 		INS_InsertCall(
 			ins,
@@ -205,7 +288,7 @@ VOID Fuzzer_Instrunction(INS ins, void*)
 			IARG_END
 		);
 	}
-	else if (INS_IsCall(ins) && !prohibition)
+	else if (INS_IsCall(ins))
 	{
 		INS_InsertCall(
 			ins,
@@ -228,7 +311,7 @@ VOID Fuzzer_Instrunction(INS ins, void*)
 		}
 		
 	}
-	else if (callDetected && !prohibition)
+	else if (callDetected)
 	{
 		RTN rtn = RTN_FindByAddress(INS_Address(ins));
 		if (RTN_Valid(rtn))
@@ -244,7 +327,7 @@ VOID Fuzzer_Instrunction(INS ins, void*)
 			);
 		}
 	}
-	else if (pushDetected && !prohibition)
+	else if (pushDetected)
 	{
 		INS_InsertCall(
 			ins,
