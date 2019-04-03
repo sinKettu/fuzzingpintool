@@ -143,6 +143,16 @@ VOID ResetSavedPushes()
 	pushDetected = false;
 }
 
+VOID HandleRet()
+{
+	if (headInstructions.empty() || savedContexts.empty() || funcArgs.empty())
+		return;
+
+	headInstructions.pop_back();
+	savedContexts.pop_back();
+	funcArgs.pop_back();
+}
+
 VOID Fuzzer_Instrunction(INS ins, void*)
 {
 	PIN_LockClient();
@@ -166,6 +176,14 @@ VOID Fuzzer_Instrunction(INS ins, void*)
 		INS_InsertCall(
 			ins,
 			IPOINT_BEFORE, (AFUNPTR)HandleCall,
+			IARG_END
+		);
+	}
+	else if (INS_IsRet(ins))
+	{
+		INS_InsertCall(
+			ins,
+			IPOINT_BEFORE, (AFUNPTR)HandleRet,
 			IARG_END
 		);
 	}
