@@ -126,6 +126,7 @@ VOID HandleRtnHead(ADDRINT addr, CONTEXT *ctxt, const string *name)
 	PIN_SaveContext(ctxt, &tmp);
 	savedContexts.push_back(tmp);
 	headInstructions.push_back(addr);
+	callDetected = false;
 	
 	printf("\n%s\n", name->c_str());
 	printf("[HEAD] 0x%08x\n", headInstructions.back());
