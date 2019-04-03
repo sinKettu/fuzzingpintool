@@ -12,16 +12,17 @@ using namespace std;
 ADDRINT headInsAddr = 0;
 CONTEXT backup;
 int rouns = ROUNDS_COUNT;
+
 ofstream fout;
 BOOL pushDetected = false;
 BOOL callDetected = false;
+FUNCTION_ARGUMENTS tmp;
 
 vector<CONTEXT> savedContexts;
 vector<ADDRINT> headInstructions;
 vector<FUNCTION_ARGUMENTS> funcArgs;
 vector<pair<ADDRINT, UINT32>> localVars;
 vector<UINT32> lvSeparators;
-FUNCTION_ARGUMENTS tmp;
 
 VOID headInsCall(ADDRINT head, CONTEXT *ctxt)
 {
@@ -97,9 +98,7 @@ VOID ShowFunctionArguments(FUNCTION_ARGUMENTS args)
 {
 	FUNCTION_ARGUMENTS::iterator iter;
 	for (iter = args.begin(); iter != args.end(); iter++)
-	{
 		printf("0x%08x --> 0x%08x\n", iter->first, iter->second);
-	}
 }
 
 VOID HandlePush(ADDRINT esp)
@@ -112,10 +111,9 @@ VOID HandlePush(ADDRINT esp)
 VOID HandleCall()
 {
 	callDetected = true;
-
-		funcArgs.push_back(tmp);
-		tmp.clear();
-		pushDetected = false;
+	funcArgs.push_back(tmp);
+	tmp.clear();
+	pushDetected = false;
 
 	//printf("0x%08x\n", addr);
 }
