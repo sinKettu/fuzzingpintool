@@ -13,12 +13,10 @@ ADDRINT headInsAddr = 0;
 CONTEXT backup;
 int rouns = ROUNDS_COUNT;
 
-int counter1 = 0;
-int counter2 = 0;
-
 ofstream fout;
 BOOL pushDetected = false;
 BOOL callDetected = false;
+BOOL prohibition = false;
 FUNCTION_ARGUMENTS tmp;
 
 vector<CONTEXT> savedContexts;
@@ -114,7 +112,7 @@ VOID HandlePush(ADDRINT esp)
 VOID HandleCall(ADDRINT addr)
 {
 	headInsAddr = addr;
-	callDetected = true; counter1++;
+	callDetected = true;
 	pushDetected = false;
 	funcArgs.push_back(tmp);
 	tmp.clear();
@@ -129,18 +127,9 @@ VOID HandleRtnHead(ADDRINT addr, CONTEXT *ctxt, const string *name)
 	PIN_SaveContext(ctxt, &tmp);
 	savedContexts.push_back(tmp);
 	headInstructions.push_back(addr);
-	callDetected = false; counter2++;
+	callDetected = false;
 
-	printf("\n%s\n", name->c_str());
-	printf("[HEAD] 0x%08x\n", headInstructions.back());
-	if (!funcArgs.back().empty())
-	{
-		printf("[ARGS]\n");
-		ShowFunctionArguments(funcArgs.back());
-	}
-	printf("[CONTEXT]\n");
-	ShowContext(&savedContexts.back());
-	printf("\n");
+	
 }
 
 VOID ResetSavedPushes()
@@ -149,18 +138,57 @@ VOID ResetSavedPushes()
 	pushDetected = false;
 }
 
-VOID HandleRet()
+VOID HandleRet(const string *name)
 {
 	if (headInstructions.empty() || savedContexts.empty() || funcArgs.empty())
 		return;
 
-	headInstructions.pop_back();
-	savedContexts.pop_back();
-	funcArgs.pop_back();
+	if (name->compare("print_test") == 0)
+	{
+		printf("\n%s\n", name->c_str());
+		printf("[HEAD] 0x%08x\n", headInstructions.back());
+		if (!funcArgs.back().empty())
+		{
+			for (int i = (int)funcArgs.size() - 1; i>=0 ; i--)
+			{
+				printf("[ARGS]\n");
+				ShowFunctionArguments(funcArgs[i]);
+				printf("\n");
+			}
+			
+		}
+		printf("[CONTEXT]\n");
+		ShowContext(&savedContexts.back());
+		printf("\n");
+
+		headInstructions.pop_back();
+		savedContexts.pop_back();
+		funcArgs.pop_back();
+
+	}
+
+	
+
+	/*if (name->compare("print_test") == 0 && rouns != 0)
+	{
+		ShowFunctionArguments(funcArgs.back());
+		CONTEXT tmp;
+		PIN_SaveContext(&savedContexts.back(), &tmp);
+		PIN_SetContextReg(&tmp, REG_EIP, headInstructions.back());
+		rouns--;
+		prohibition = true;
+		PIN_ExecuteAt(&tmp);
+	}
+	else
+	{
+		prohibition = false;
+		
+	}*/
 }
 
 VOID Fuzzer_Instrunction(INS ins, void*)
 {
+	INS prev = INS_Prev(ins);
 	PIN_LockClient();
 	IMG img = IMG_FindByAddress(INS_Address(ins));
 	PIN_UnlockClient();
@@ -168,7 +196,7 @@ VOID Fuzzer_Instrunction(INS ins, void*)
 	if (!(IMG_Valid(img) && IMG_IsMainExecutable(img)))
 		return;
 
-	if (INS_Opcode(ins) == XED_ICLASS_PUSH)
+	if (INS_Opcode(ins) == XED_ICLASS_PUSH && !prohibition)
 	{
 		INS_InsertCall(
 			ins,
@@ -177,7 +205,7 @@ VOID Fuzzer_Instrunction(INS ins, void*)
 			IARG_END
 		);
 	}
-	else if (INS_IsCall(ins))
+	else if (INS_IsCall(ins) && !prohibition)
 	{
 		INS_InsertCall(
 			ins,
@@ -187,13 +215,20 @@ VOID Fuzzer_Instrunction(INS ins, void*)
 	}
 	else if (INS_IsRet(ins))
 	{
-		INS_InsertCall(
-			ins,
-			IPOINT_BEFORE, (AFUNPTR)HandleRet,
-			IARG_END
-		);
+		RTN rtn = RTN_FindByAddress(INS_Address(ins));
+		if (RTN_Valid(rtn))
+		{
+			const string *name = &RTN_Name(rtn);
+			INS_InsertCall(
+				ins,
+				IPOINT_BEFORE, (AFUNPTR)HandleRet,
+				IARG_PTR, name,
+				IARG_END
+			);
+		}
+		
 	}
-	else if (callDetected)
+	else if (callDetected && !prohibition)
 	{
 		RTN rtn = RTN_FindByAddress(INS_Address(ins));
 		if (RTN_Valid(rtn))
@@ -209,7 +244,7 @@ VOID Fuzzer_Instrunction(INS ins, void*)
 			);
 		}
 	}
-	else if (pushDetected)
+	else if (pushDetected && !prohibition)
 	{
 		INS_InsertCall(
 			ins,
