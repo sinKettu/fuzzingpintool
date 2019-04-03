@@ -13,6 +13,9 @@ ADDRINT headInsAddr = 0;
 CONTEXT backup;
 int rouns = ROUNDS_COUNT;
 
+int counter1 = 0;
+int counter2 = 0;
+
 ofstream fout;
 BOOL pushDetected = false;
 BOOL callDetected = false;
@@ -111,7 +114,7 @@ VOID HandlePush(ADDRINT esp)
 VOID HandleCall(ADDRINT addr)
 {
 	headInsAddr = addr;
-	callDetected = true;
+	callDetected = true; counter1++;
 	pushDetected = false;
 	funcArgs.push_back(tmp);
 	tmp.clear();
@@ -119,12 +122,15 @@ VOID HandleCall(ADDRINT addr)
 
 VOID HandleRtnHead(ADDRINT addr, CONTEXT *ctxt, const string *name)
 {
+	if (!headInstructions.empty() && headInstructions.back() == addr)
+		return;
+
 	CONTEXT tmp;
 	PIN_SaveContext(ctxt, &tmp);
 	savedContexts.push_back(tmp);
 	headInstructions.push_back(addr);
-	callDetected = false;
-	
+	callDetected = false; counter2++;
+
 	printf("\n%s\n", name->c_str());
 	printf("[HEAD] 0x%08x\n", headInstructions.back());
 	if (!funcArgs.back().empty())
