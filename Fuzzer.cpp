@@ -108,14 +108,13 @@ VOID HandlePush(ADDRINT esp)
 	pushDetected = true;
 }
 
-VOID HandleCall()
+VOID HandleCall(ADDRINT addr)
 {
+	headInsAddr = addr;
 	callDetected = true;
+	pushDetected = false;
 	funcArgs.push_back(tmp);
 	tmp.clear();
-	pushDetected = false;
-
-	//printf("0x%08x\n", addr);
 }
 
 VOID HandleRtnHead(ADDRINT addr, CONTEXT *ctxt, const string *name)
@@ -142,11 +141,6 @@ VOID ResetSavedPushes()
 {
 	tmp.clear();
 	pushDetected = false;
-}
-
-VOID RtnInfo(const string *name)
-{
-	
 }
 
 VOID Fuzzer_Instrunction(INS ins, void*)
