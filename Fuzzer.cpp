@@ -191,28 +191,3 @@ VOID Fuzzer_Instrunction(INS ins, void*)
 		);
 	}
 }
-
-VOID Fuzzer_SysCall(THREADID id, CONTEXT *ctxt, SYSCALL_STANDARD std, void*)
-{
-	if (PIN_GetContextReg(ctxt, REG_EAX) == 0x001a0008 && headInsAddr != 0)
-	{
-		headInsAddr = 0;
-		tailInsAddr = 0;
-		CONTEXT tmp;
-		PIN_SaveContext(&backup, &tmp);
-
-		if (!args.empty())
-			for (map<ADDRINT, UINT32>::iterator arg = args.begin(); arg != args.end(); arg++)
-				DEREFERENCED(arg->first) = arg->second;
-
-		if (!locals.empty())
-			for (map<ADDRINT, UINT32>::iterator local = locals.begin(); local != locals.end(); local++)
-				DEREFERENCED(local->first) = local->second;
-
-		locals.clear();
-		args.clear();
-		rounds = ROUNDS_COUNT;
-		dontInstrument = true;
-		PIN_ExecuteAt(&tmp);
-	}
-}

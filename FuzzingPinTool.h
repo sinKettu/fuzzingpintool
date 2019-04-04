@@ -12,6 +12,5 @@ VOID Tracer_Fini(int exitCode, void*);
 
 VOID Fuzzer_Image(IMG img, void*);
 VOID Fuzzer_Instrunction(INS ins, void*);
-VOID Fuzzer_SysCall(THREADID id, CONTEXT *ctxt, SYSCALL_STANDARD std, void*);
 
 VOID StackOverflows_Instruction(INS ins, void*);
