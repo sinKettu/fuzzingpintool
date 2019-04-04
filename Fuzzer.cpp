@@ -154,20 +154,13 @@ VOID StackReadHandle(ADDRINT esp, ADDRINT ebp, ADDRINT readAddr, ADDRINT insAddr
 	{
 		locals.insert(make_pair(readAddr, DEREFERENCED(readAddr)));
 		printf("local 0x%08x is 0x%08x\n", readAddr, DEREFERENCED(readAddr));
-		UINT32 randVal = rand() & UINT32_MAX;
-		printf("replaced with 0x%08x\n", randVal);
-		DEREFERENCED(readAddr) = randVal;
 	}
 }
 
-//VOID StackWriteHandle(ADDRINT esp, ADDRINT ebp, ADDRINT writeAddr, ADDRINT insAddr)
-//{
-//
-//}
-
 VOID Fuzzer_Instrunction(INS ins, void*)
 {
-	if (INS_IsStackRead(ins) && INS_OperandCount(ins) == 2)
+	// Make Better Condition!!!
+	if (INS_IsMemoryRead(ins)/* && INS_MemoryOperandCount(ins) == 2/* && INS_MemoryOperandIsRead(ins, 1)*/)
 	{
 		INS_InsertCall(
 			ins,
@@ -179,16 +172,4 @@ VOID Fuzzer_Instrunction(INS ins, void*)
 			IARG_END
 		);
 	}
-	/*else if (INS_IsStackWrite(ins) && INS_OperandCount(ins) == 2)
-	{
-		INS_InsertCall(
-			ins,
-			IPOINT_BEFORE, (AFUNPTR)StackWriteHandle,
-			IARG_REG_VALUE, REG_ESP,
-			IARG_REG_VALUE, REG_EBP,
-			IARG_MEMORYOP_EA, 0,
-			IARG_ADDRINT, INS_Address(ins),
-			IARG_END
-		);
-	}*/
 }
