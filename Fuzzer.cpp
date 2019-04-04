@@ -8,72 +8,28 @@
 using namespace std;
 
 #define ROUNDS_COUNT 10
-#define FUNCTION_ARGUMENTS vector<pair<ADDRINT, UINT32>>
+#define ARGUMENTS_COUNT 4
+#define DEREFERENCED(x) *(reinterpret_cast<ADDRINT*>(x))
 
+ofstream fout;
 ADDRINT headInsAddr = 0;
 ADDRINT tailInsAddr = 0;
 CONTEXT backup;
-int rouns = ROUNDS_COUNT;
-
-
-ofstream fout;
-BOOL pushDetected = false;
-BOOL callDetected = false;
 BOOL dontInstrument = false;
-FUNCTION_ARGUMENTS tmp;
+INT32 rounds = ROUNDS_COUNT;
+map<ADDRINT, UINT32> locals;
+map<ADDRINT, UINT32> args;
 
-vector<CONTEXT> savedContexts;
-vector<ADDRINT> headInstructions;
-vector<FUNCTION_ARGUMENTS> funcArgs;
-vector<pair<ADDRINT, UINT32>> localVars;
-vector<UINT32> lvSeparators;
-
-VOID headInsCall(ADDRINT head, CONTEXT *ctxt)
+VOID ShowContext(CONTEXT *ctxt)
 {
-	if (headInsAddr != 0)
-		return;
-
-	headInsAddr = head;
-	PIN_SaveContext(ctxt, &backup);
-}
-
-VOID tailInsCall()
-{
-	
-	if (headInsAddr == 0 || rouns == 0)
-		return;
-
-	CONTEXT restored;
-	PIN_SaveContext(&backup, &restored);
-	PIN_SetContextReg(&restored, REG_EIP, headInsAddr);
-	rouns--;
-	PIN_ExecuteAt(&restored);
-}
-
-VOID Fuzzer_Routine(RTN rtn, void*)
-{
-	if (RTN_Valid(rtn) && RTN_Name(rtn).compare("print_test") == 0)
-	{
-		RTN_Open(rtn);
-		INS headIns = RTN_InsHead(rtn);
-
-		INS_InsertCall(
-			headIns,
-			IPOINT_BEFORE, (AFUNPTR)headInsCall,
-			IARG_ADDRINT, INS_Address(headIns),
-			IARG_CONTEXT,
-			IARG_END
-		);
-
-		INS tailIns = RTN_InsTail(rtn);
-		INS_InsertCall(
-			tailIns,
-			IPOINT_BEFORE, (AFUNPTR)tailInsCall,
-			IARG_END
-		);
-		RTN_Close(rtn);
-	}
-	
+	printf("EAX: 0x%08x\t", PIN_GetContextReg(ctxt, REG_EAX));
+	printf("EBX: 0x%08x\t", PIN_GetContextReg(ctxt, REG_EBX));
+	printf("ECX: 0x%08x\t", PIN_GetContextReg(ctxt, REG_ECX));
+	printf("EDX: 0x%08x\n", PIN_GetContextReg(ctxt, REG_EDX));
+	printf("ESI: 0x%08x\t", PIN_GetContextReg(ctxt, REG_ESI));
+	printf("EDI: 0x%08x\t", PIN_GetContextReg(ctxt, REG_EDI));
+	printf("ESP: 0x%08x\t", PIN_GetContextReg(ctxt, REG_ESP));
+	printf("EBP: 0x%08x\n", PIN_GetContextReg(ctxt, REG_EBP));
 }
 
 VOID HandleHead(ADDRINT hAddr, ADDRINT tAddr, CONTEXT *ctxt)
@@ -87,25 +43,35 @@ VOID HandleHead(ADDRINT hAddr, ADDRINT tAddr, CONTEXT *ctxt)
 		return;
 	}
 
+	ADDRINT esp = PIN_GetContextReg(ctxt, REG_ESP);
+	for (UINT32 arg = 4; arg < ARGUMENTS_COUNT * 4 + 4; arg += 4)
+		args.insert(make_pair(esp + arg, DEREFERENCED(esp + arg)));
+
 	PIN_SaveContext(ctxt, &backup);
 	headInsAddr = hAddr;
 	tailInsAddr = tAddr;
 	srand(time(0));
 }
 
-VOID HandleTail(ADDRINT addr, ADDRINT next)
+VOID HandleTail(ADDRINT addr)
 {
-	if (tailInsAddr != 0 && addr == tailInsAddr)
+	if (addr == tailInsAddr)
 	{
-		if (rouns != 0)
+		if (rounds != 0)
 		{
-			printf("ROUND: %d\n", ROUNDS_COUNT - rouns + 1);
+			printf("_ROUND: %d\n", ROUNDS_COUNT - rounds + 1);
 			CONTEXT tmp;
 			PIN_SaveContext(&backup, &tmp);
-			rouns--;
-			ADDRINT a = PIN_GetContextReg(&tmp, REG_ESP);
+			rounds--;
 			
-			*(reinterpret_cast<ADDRINT*>(a + 4)) = rand() & 0xffffffff;
+			if (!args.empty())
+				for (map<ADDRINT, UINT32>::iterator arg = args.begin(); arg != args.end(); arg++)
+					DEREFERENCED(arg->first) = rand() & UINT32_MAX;
+
+			if (!locals.empty())
+				for (map<ADDRINT, UINT32>::iterator local = locals.begin(); local != locals.end(); local++)
+					DEREFERENCED(local->first) = rand() & UINT32_MAX;
+
 			PIN_ExecuteAt(&tmp);
 		}
 		else
@@ -114,7 +80,18 @@ VOID HandleTail(ADDRINT addr, ADDRINT next)
 			tailInsAddr = 0;
 			CONTEXT tmp;
 			PIN_SaveContext(&backup, &tmp);
-			rouns = ROUNDS_COUNT;
+
+			if (!args.empty())
+				for (map<ADDRINT, UINT32>::iterator arg = args.begin(); arg != args.end(); arg++)
+					DEREFERENCED(arg->first) = arg->second;
+
+			if (!locals.empty())
+				for (map<ADDRINT, UINT32>::iterator local = locals.begin(); local != locals.end(); local++)
+					DEREFERENCED(local->first) = local->second;
+
+			locals.clear();
+			args.clear();
+			rounds = ROUNDS_COUNT;
 			dontInstrument = true;
 			PIN_ExecuteAt(&tmp);
 		}
@@ -139,7 +116,6 @@ VOID Fuzzer_Image(IMG img, void*)
 					printf("%s\n", RTN_Name(rtn).c_str());
 					RTN_Open(rtn);
 					INS head = RTN_InsHead(rtn);
-					INS next = INS_Next(head);
 					INS tail = RTN_InsTail(rtn);
 					
 					INS_InsertCall(
@@ -155,7 +131,6 @@ VOID Fuzzer_Image(IMG img, void*)
 						tail,
 						IPOINT_BEFORE, (AFUNPTR)HandleTail,
 						IARG_ADDRINT, INS_Address(tail),
-						IARG_ADDRINT, INS_Address(next),
 						IARG_END
 					);
 
@@ -166,173 +141,54 @@ VOID Fuzzer_Image(IMG img, void*)
 	}
 }
 
-VOID ShowContext(CONTEXT *ctxt)
+VOID StackReadHandle(ADDRINT esp, ADDRINT ebp, ADDRINT readAddr, ADDRINT insAddr)
 {
-	printf("EAX: 0x%08x\t", PIN_GetContextReg(ctxt, REG_EAX));
-	printf("EBX: 0x%08x\t", PIN_GetContextReg(ctxt, REG_EBX));
-	printf("ECX: 0x%08x\t", PIN_GetContextReg(ctxt, REG_ECX));
-	printf("EDX: 0x%08x\n", PIN_GetContextReg(ctxt, REG_EDX));
-	printf("ESI: 0x%08x\t", PIN_GetContextReg(ctxt, REG_ESI));
-	printf("EDI: 0x%08x\t", PIN_GetContextReg(ctxt, REG_EDI));
-	printf("ESP: 0x%08x\t", PIN_GetContextReg(ctxt, REG_ESP));
-	printf("EBP: 0x%08x\n", PIN_GetContextReg(ctxt, REG_EBP));
-}
-
-VOID ShowFunctionArguments(FUNCTION_ARGUMENTS args)
-{
-	FUNCTION_ARGUMENTS::iterator iter;
-	for (iter = args.begin(); iter != args.end(); iter++)
-		printf("0x%08x --> 0x%08x\n", iter->first, iter->second);
-}
-
-VOID HandlePush(ADDRINT esp)
-{
-	UINT32 val = *(reinterpret_cast<ADDRINT*>(esp));
-	tmp.push_back(make_pair(esp, val));
-	pushDetected = true;
-}
-
-VOID HandleCall(ADDRINT addr)
-{
-	headInsAddr = addr;
-	callDetected = true;
-	pushDetected = false;
-	funcArgs.push_back(tmp);
-	tmp.clear();
-}
-
-VOID HandleRtnHead(ADDRINT addr, CONTEXT *ctxt, const string *name)
-{
-	if (!headInstructions.empty() && headInstructions.back() == addr)
+	if (insAddr < headInsAddr || insAddr > tailInsAddr)
 		return;
 
-	CONTEXT tmp;
-	PIN_SaveContext(ctxt, &tmp);
-	savedContexts.push_back(tmp);
-	headInstructions.push_back(addr);
-	callDetected = false;
-
-	
-}
-
-VOID ResetSavedPushes()
-{
-	tmp.clear();
-	pushDetected = false;
-}
-
-VOID HandleRet(const string *name)
-{
-	if (headInstructions.empty() || savedContexts.empty() || funcArgs.empty())
+	if (!(readAddr >= esp && readAddr < ebp))
 		return;
 
-	if (name->compare("print_test") == 0)
+	map<ADDRINT, UINT32>::iterator cell = locals.find(readAddr);
+	if (cell == locals.end())
 	{
-		printf("\n%s\n", name->c_str());
-		printf("[HEAD] 0x%08x\n", headInstructions.back());
-		if (!funcArgs.back().empty())
-		{
-			for (int i = (int)funcArgs.size() - 1; i>=0 ; i--)
-			{
-				printf("[ARGS]\n");
-				ShowFunctionArguments(funcArgs[i]);
-				printf("\n");
-			}
-			
-		}
-		printf("[CONTEXT]\n");
-		ShowContext(&savedContexts.back());
-		printf("\n");
-
-		headInstructions.pop_back();
-		savedContexts.pop_back();
-		funcArgs.pop_back();
-
+		locals.insert(make_pair(readAddr, DEREFERENCED(readAddr)));
+		printf("local 0x%08x is 0x%08x\n", readAddr, DEREFERENCED(readAddr));
+		UINT32 randVal = rand() & UINT32_MAX;
+		printf("replaced with 0x%08x\n", randVal);
+		DEREFERENCED(readAddr) = randVal;
 	}
-
-	
-
-	/*if (name->compare("print_test") == 0 && rouns != 0)
-	{
-		ShowFunctionArguments(funcArgs.back());
-		CONTEXT tmp;
-		PIN_SaveContext(&savedContexts.back(), &tmp);
-		PIN_SetContextReg(&tmp, REG_EIP, headInstructions.back());
-		rouns--;
-		prohibition = true;
-		PIN_ExecuteAt(&tmp);
-	}
-	else
-	{
-		prohibition = false;
-		
-	}*/
 }
+
+//VOID StackWriteHandle(ADDRINT esp, ADDRINT ebp, ADDRINT writeAddr, ADDRINT insAddr)
+//{
+//
+//}
 
 VOID Fuzzer_Instrunction(INS ins, void*)
 {
-	INS prev = INS_Prev(ins);
-	PIN_LockClient();
-	IMG img = IMG_FindByAddress(INS_Address(ins));
-	PIN_UnlockClient();
-
-	if (!(IMG_Valid(img) && IMG_IsMainExecutable(img)))
-		return;
-
-	if (INS_Opcode(ins) == XED_ICLASS_PUSH )
+	if (INS_IsStackRead(ins) && INS_OperandCount(ins) == 2)
 	{
 		INS_InsertCall(
 			ins,
-			IPOINT_AFTER, (AFUNPTR)HandlePush,
+			IPOINT_BEFORE, (AFUNPTR)StackReadHandle,
 			IARG_REG_VALUE, REG_ESP,
+			IARG_REG_VALUE, REG_EBP,
+			IARG_MEMORYREAD_EA,
+			IARG_ADDRINT, INS_Address(ins),
 			IARG_END
 		);
 	}
-	else if (INS_IsCall(ins))
+	/*else if (INS_IsStackWrite(ins) && INS_OperandCount(ins) == 2)
 	{
 		INS_InsertCall(
 			ins,
-			IPOINT_BEFORE, (AFUNPTR)HandleCall,
+			IPOINT_BEFORE, (AFUNPTR)StackWriteHandle,
+			IARG_REG_VALUE, REG_ESP,
+			IARG_REG_VALUE, REG_EBP,
+			IARG_MEMORYOP_EA, 0,
+			IARG_ADDRINT, INS_Address(ins),
 			IARG_END
 		);
-	}
-	else if (INS_IsRet(ins))
-	{
-		RTN rtn = RTN_FindByAddress(INS_Address(ins));
-		if (RTN_Valid(rtn))
-		{
-			const string *name = &RTN_Name(rtn);
-			INS_InsertCall(
-				ins,
-				IPOINT_BEFORE, (AFUNPTR)HandleRet,
-				IARG_PTR, name,
-				IARG_END
-			);
-		}
-		
-	}
-	else if (callDetected)
-	{
-		RTN rtn = RTN_FindByAddress(INS_Address(ins));
-		if (RTN_Valid(rtn))
-		{
-			const string *name = &RTN_Name(rtn);
-			INS_InsertCall(
-				ins,
-				IPOINT_BEFORE, (AFUNPTR)HandleRtnHead,
-				IARG_ADDRINT, INS_Address(ins),
-				IARG_CONTEXT,
-				IARG_PTR, name,
-				IARG_END
-			);
-		}
-	}
-	else if (pushDetected)
-	{
-		INS_InsertCall(
-			ins,
-			IPOINT_BEFORE, (AFUNPTR)ResetSavedPushes,
-			IARG_END
-		);
-	}
+	}*/
 }
