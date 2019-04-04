@@ -20,6 +20,15 @@ INT32 rounds = ROUNDS_COUNT;
 map<ADDRINT, UINT32> locals;
 map<ADDRINT, UINT32> args;
 
+VOID ShowArguments()
+{
+	printf("Address --> Value\n");
+	for (map<ADDRINT, UINT32>::iterator arg = args.begin(); arg != args.end(); arg++)
+	{
+		printf("0x%08x --> 0x%08x\n", arg->first, arg->second);
+	}
+}
+
 VOID ShowContext(CONTEXT *ctxt)
 {
 	printf("EAX: 0x%08x\t", PIN_GetContextReg(ctxt, REG_EAX));
@@ -32,7 +41,7 @@ VOID ShowContext(CONTEXT *ctxt)
 	printf("EBP: 0x%08x\n", PIN_GetContextReg(ctxt, REG_EBP));
 }
 
-VOID HandleHead(ADDRINT hAddr, ADDRINT tAddr, CONTEXT *ctxt)
+VOID HandleHead(ADDRINT hAddr, ADDRINT tAddr, CONTEXT *ctxt, const string *name)
 {
 	if (headInsAddr != 0)
 		return;
@@ -51,6 +60,14 @@ VOID HandleHead(ADDRINT hAddr, ADDRINT tAddr, CONTEXT *ctxt)
 	headInsAddr = hAddr;
 	tailInsAddr = tAddr;
 	srand(time(0));
+
+	printf("\n[ROUTINE] %s\n", name->c_str());
+	printf("[HEAD] 0x%08x\n[TAIL] 0x%08x\n", hAddr, tAddr);
+	printf("[CONTEXT]\n");
+	ShowContext(ctxt);
+	printf("[%d ARGUMENTS]\n", ARGUMENTS_COUNT);
+	ShowArguments();
+	printf("\n");
 }
 
 VOID HandleTail(ADDRINT addr)
@@ -110,10 +127,10 @@ VOID Fuzzer_Image(IMG img, void*)
 				RTN rtn = SEC_RtnHead(sec);
 				for (rtn; RTN_Valid(rtn); rtn = RTN_Next(rtn))
 				{
-					if (RTN_Name(rtn).compare("print_test") != 0)
+					const string *name = &RTN_Name(rtn);
+					if (name->compare("print_test") != 0)
 						continue;
 
-					printf("%s\n", RTN_Name(rtn).c_str());
 					RTN_Open(rtn);
 					INS head = RTN_InsHead(rtn);
 					INS tail = RTN_InsTail(rtn);
@@ -124,6 +141,7 @@ VOID Fuzzer_Image(IMG img, void*)
 						IARG_ADDRINT, INS_Address(head),
 						IARG_ADDRINT, INS_Address(tail),
 						IARG_CONTEXT,
+						IARG_PTR, name,
 						IARG_END
 					);
 
@@ -171,5 +189,30 @@ VOID Fuzzer_Instrunction(INS ins, void*)
 			IARG_ADDRINT, INS_Address(ins),
 			IARG_END
 		);
+	}
+}
+
+VOID Fuzzer_SysCall(THREADID id, CONTEXT *ctxt, SYSCALL_STANDARD std, void*)
+{
+	if (PIN_GetContextReg(ctxt, REG_EAX) == 0x001a0008 && headInsAddr != 0)
+	{
+		headInsAddr = 0;
+		tailInsAddr = 0;
+		CONTEXT tmp;
+		PIN_SaveContext(&backup, &tmp);
+
+		if (!args.empty())
+			for (map<ADDRINT, UINT32>::iterator arg = args.begin(); arg != args.end(); arg++)
+				DEREFERENCED(arg->first) = arg->second;
+
+		if (!locals.empty())
+			for (map<ADDRINT, UINT32>::iterator local = locals.begin(); local != locals.end(); local++)
+				DEREFERENCED(local->first) = local->second;
+
+		locals.clear();
+		args.clear();
+		rounds = ROUNDS_COUNT;
+		dontInstrument = true;
+		PIN_ExecuteAt(&tmp);
 	}
 }
