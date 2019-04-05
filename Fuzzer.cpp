@@ -25,32 +25,61 @@ map<ADDRINT, UINT32> traversed;
 
 VOID ShowArguments()
 {
-	printf("Address --> Value\n");
+	bool flag = false;
+	if (!fout.is_open())
+	{
+		fout.open("outdata.txt", ios::app);
+		flag = true;
+	}
+
 	for (map<ADDRINT, UINT32>::iterator arg = args.begin(); arg != args.end(); arg++)
 	{
-		printf("0x%08x --> 0x%08x\n", arg->first, arg->second);
+		fout << "\t" << hexstr(arg->first) << " --> " << hexstr(arg->second) << endl;
 	}
+
+	if (flag)
+		fout.close();
 }
 
 VOID ShowContext(CONTEXT *ctxt)
 {
-	printf("EAX: 0x%08x\t", PIN_GetContextReg(ctxt, REG_EAX));
-	printf("EBX: 0x%08x\t", PIN_GetContextReg(ctxt, REG_EBX));
-	printf("ECX: 0x%08x\t", PIN_GetContextReg(ctxt, REG_ECX));
-	printf("EDX: 0x%08x\n", PIN_GetContextReg(ctxt, REG_EDX));
-	printf("ESI: 0x%08x\t", PIN_GetContextReg(ctxt, REG_ESI));
-	printf("EDI: 0x%08x\t", PIN_GetContextReg(ctxt, REG_EDI));
-	printf("ESP: 0x%08x\t", PIN_GetContextReg(ctxt, REG_ESP));
-	printf("EBP: 0x%08x\n", PIN_GetContextReg(ctxt, REG_EBP));
+	bool flag = false;
+	if (!fout.is_open())
+	{
+		fout.open("outdata.txt", ios::app);
+		flag = true;
+	}
+
+	fout << "\tEAX: " << hexstr(PIN_GetContextReg(ctxt, REG_EAX));
+	fout << "\tEBX: " << hexstr(PIN_GetContextReg(ctxt, REG_EBX));
+	fout << "\tECX: " << hexstr(PIN_GetContextReg(ctxt, REG_ECX));
+	fout << "\tEDX: " << hexstr(PIN_GetContextReg(ctxt, REG_EDX)) << endl;
+	fout << "\tESI: " << hexstr(PIN_GetContextReg(ctxt, REG_ESI));
+	fout << "\tEDI: " << hexstr(PIN_GetContextReg(ctxt, REG_EDI));
+	fout << "\tESP: " << hexstr(PIN_GetContextReg(ctxt, REG_ESP));
+	fout << "\tEBP: " << hexstr(PIN_GetContextReg(ctxt, REG_EBP)) << endl;
+
+	if (flag)
+		fout.close();
 }
 
 VOID ShowTraversedBbl()
 {
+	bool flag = false;
+	if (!fout.is_open())
+	{
+		fout.open("outdata.txt", ios::app);
+		flag = true;
+	}
+
 	map<ADDRINT, UINT32>::iterator bbl;
 	for (bbl = traversed.begin(); bbl != traversed.end(); bbl++)
 	{
-		printf("0x%08x:\t%u\n", bbl->first, bbl->second);
+		fout << "\t" << hexstr(bbl->first) << ":\t" << bbl->second << endl;
 	}
+
+	if (flag)
+		fout.close();
 }
 
 VOID HandleHead(ADDRINT hAddr, ADDRINT tAddr, CONTEXT *ctxt, const string *name)
@@ -73,13 +102,16 @@ VOID HandleHead(ADDRINT hAddr, ADDRINT tAddr, CONTEXT *ctxt, const string *name)
 	tailInsAddr = tAddr;
 	srand(time(0));
 
-	printf("\n[ROUTINE] %s\n", name->c_str());
-	printf("[HEAD] 0x%08x\n[TAIL] 0x%08x\n", hAddr, tAddr);
-	printf("[CONTEXT]\n");
+	fout.open("outdata.txt", ios::app);
+	fout << "\n[ROUTINE] " << *name << endl;
+	fout << "[HEAD] " << hexstr(hAddr) << endl;
+	fout << "[TAIL] " << hexstr(tAddr) << endl;
+	fout << "[CONTEXT]\n";
 	ShowContext(ctxt);
-	printf("[%d ARGUMENTS]\n", ARGUMENTS_COUNT);
+	fout << "[" << ARGUMENTS_COUNT << " ARGUMENTS]" << endl;
 	ShowArguments();
-	printf("\n");
+	fout << endl;
+	fout.close();
 }
 
 VOID HandleTail(ADDRINT addr)
@@ -88,13 +120,16 @@ VOID HandleTail(ADDRINT addr)
 	{
 		if (rounds != 0)
 		{
-			printf("_ROUND: %d\n", ROUNDS_COUNT - rounds + 1);
 			PIN_SaveContext(&backup, &working);
 			rounds--;
 			
 			if (!args.empty())
 				for (map<ADDRINT, UINT32>::iterator arg = args.begin(); arg != args.end(); arg++)
 					DEREFERENCED(arg->first) = (rand() & UINT32_MAX) ^ (rand() & UINT32_MAX);
+
+			//fout.open("outdata.txt", ios::app);
+			//fout << "ROUND " << ROUNDS_COUNT - rounds << endl;
+			//fout.close();
 
 			locals.clear();
 			PIN_ExecuteAt(&working);
@@ -113,9 +148,11 @@ VOID HandleTail(ADDRINT addr)
 				for (map<ADDRINT, UINT32>::iterator local = locals_backup.begin(); local != locals_backup.end(); local++)
 					DEREFERENCED(local->first) = local->second;
 
-			printf("\n[BBL]\n");
+			fout.open("outdata.txt", ios::app);
+			fout << "[BBL]" << endl;
 			ShowTraversedBbl();
-			printf("\n");
+			fout << endl;
+			fout.close();
 
 			traversed.clear();
 			locals.clear();
@@ -175,7 +212,9 @@ VOID Fuzzer_Image(IMG img, void*)
 VOID ReplaceLocal(ADDRINT addr)
 {
 	UINT32 replace = rand() & UINT32_MAX;
-	printf("[LOCAL] 0x%08x is 0x%08x, replaced with 0x%08x\n", addr, DEREFERENCED(addr), replace);
+	//fout.open("outdata.txt", ios::app);
+	//fout << "[LOCAL] " << hexstr(addr) << " is " << hexstr(DEREFERENCED(addr)) << ", replaced with " << hexstr(replace) << endl;
+	//fout.close();
 	DEREFERENCED(addr) = replace;
 }
 
