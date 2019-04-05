@@ -103,9 +103,9 @@ VOID HandleHead(ADDRINT hAddr, ADDRINT tAddr, CONTEXT *ctxt, const string *name)
 	srand(time(0));
 
 	fout.open("outdata.txt", ios::app);
-	fout << "\n[ROUTINE] " << *name << endl;
-	fout << "[HEAD] " << hexstr(hAddr) << endl;
-	fout << "[TAIL] " << hexstr(tAddr) << endl;
+	fout << "\n[ROUTINE]\n\t" << *name << endl;
+	fout << "[HEAD]\n\t" << hexstr(hAddr) << endl;
+	fout << "[TAIL]\n\t" << hexstr(tAddr) << endl;
 	fout << "[CONTEXT]\n";
 	ShowContext(ctxt);
 	fout << "[" << ARGUMENTS_COUNT << " ARGUMENTS]" << endl;
@@ -279,14 +279,11 @@ VOID BblHandle(ADDRINT addr)
 
 VOID Fuzzer_Trace(TRACE trc, void*)
 {
-	RTN *rtn = &TRACE_Rtn(trc);
-	if (!RTN_Valid(*rtn)) return;
-
-	SEC *sec = &RTN_Sec(*rtn);
-
-	IMG *img = &SEC_Img(*sec);
-
-	if (IMG_IsMainExecutable(*img))
+	RTN rtn = TRACE_Rtn(trc);
+	if (!RTN_Valid(rtn)) return;
+	SEC sec = RTN_Sec(rtn);
+	IMG img = SEC_Img(sec);
+	if (IMG_IsMainExecutable(img))
 	{
 		for (BBL bbl = TRACE_BblHead(trc); BBL_Valid(bbl); bbl = BBL_Next(bbl))
 		{
