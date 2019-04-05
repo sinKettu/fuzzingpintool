@@ -7,7 +7,7 @@
 #include <time.h>
 using namespace std;
 
-#define ROUNDS_COUNT 60
+#define ROUNDS_COUNT 5
 #define ARGUMENTS_COUNT 4
 #define DEREFERENCED(x) *(reinterpret_cast<ADDRINT*>(x))
 
@@ -156,6 +156,24 @@ VOID HandleTail(ADDRINT addr)
 			//fout.open("outdata.txt", ios::app);
 			//fout << "ROUND " << ROUNDS_COUNT - rounds << endl;
 			//fout.close();
+
+			fout.open("outdata.txt", ios::app);
+			fout << "[ROUND] " << ROUNDS_COUNT - rounds << endl;
+
+			fout << "\tArguments:\n";
+			if (!args.empty())
+				for (map<ADDRINT, UINT32>::iterator arg = args.begin(); arg != args.end(); arg++)
+					fout << "\t" << hexstr(arg->first) << " value set " << hexstr(DEREFERENCED(arg->first)) << endl;
+			else
+				fout << "\tNone\n";
+
+			fout << "\tLocals:\n";
+			if (!locals.empty())
+				for (vector<ADDRINT>::iterator local = locals.begin(); local != locals.end(); local++)
+					fout << "\t" << hexstr(local) << " value set " << hexstr(DEREFERENCED(local)) << endl;
+			else
+				fout << "\tNone\n";
+			fout.close();
 
 			locals.clear();
 			PIN_ExecuteAt(&working);
