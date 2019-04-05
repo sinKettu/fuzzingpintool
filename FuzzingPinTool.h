@@ -12,5 +12,6 @@ VOID Tracer_Fini(int exitCode, void*);
 
 VOID Fuzzer_Image(IMG img, void*);
 VOID Fuzzer_Instrunction(INS ins, void*);
+VOID Fuzzer_Trace(TRACE trc, void*);
 
 VOID StackOverflows_Instruction(INS ins, void*);

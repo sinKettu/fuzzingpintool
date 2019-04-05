@@ -7,7 +7,7 @@
 #include <time.h>
 using namespace std;
 
-#define ROUNDS_COUNT 10
+#define ROUNDS_COUNT 60
 #define ARGUMENTS_COUNT 4
 #define DEREFERENCED(x) *(reinterpret_cast<ADDRINT*>(x))
 
@@ -21,6 +21,7 @@ INT32 rounds = ROUNDS_COUNT;
 map<ADDRINT, UINT32> locals_backup;
 vector<ADDRINT> locals;
 map<ADDRINT, UINT32> args;
+map<ADDRINT, UINT32> traversed;
 
 VOID ShowArguments()
 {
@@ -41,6 +42,15 @@ VOID ShowContext(CONTEXT *ctxt)
 	printf("EDI: 0x%08x\t", PIN_GetContextReg(ctxt, REG_EDI));
 	printf("ESP: 0x%08x\t", PIN_GetContextReg(ctxt, REG_ESP));
 	printf("EBP: 0x%08x\n", PIN_GetContextReg(ctxt, REG_EBP));
+}
+
+VOID ShowTraversedBbl()
+{
+	map<ADDRINT, UINT32>::iterator bbl;
+	for (bbl = traversed.begin(); bbl != traversed.end(); bbl++)
+	{
+		printf("0x%08x:\t%u\n", bbl->first, bbl->second);
+	}
 }
 
 VOID HandleHead(ADDRINT hAddr, ADDRINT tAddr, CONTEXT *ctxt, const string *name)
@@ -84,7 +94,7 @@ VOID HandleTail(ADDRINT addr)
 			
 			if (!args.empty())
 				for (map<ADDRINT, UINT32>::iterator arg = args.begin(); arg != args.end(); arg++)
-					DEREFERENCED(arg->first) = rand() & UINT32_MAX;
+					DEREFERENCED(arg->first) = (rand() & UINT32_MAX) ^ (rand() & UINT32_MAX);
 
 			locals.clear();
 			PIN_ExecuteAt(&working);
@@ -103,6 +113,11 @@ VOID HandleTail(ADDRINT addr)
 				for (map<ADDRINT, UINT32>::iterator local = locals_backup.begin(); local != locals_backup.end(); local++)
 					DEREFERENCED(local->first) = local->second;
 
+			printf("\n[BBL]\n");
+			ShowTraversedBbl();
+			printf("\n");
+
+			traversed.clear();
 			locals.clear();
 			locals_backup.clear();
 			args.clear();
@@ -193,7 +208,7 @@ VOID StackReadHandle(ADDRINT esp, ADDRINT ebp, ADDRINT readAddr, ADDRINT insAddr
 VOID Fuzzer_Instrunction(INS ins, void*)
 {
 	// Make Better Condition!!!
-	if (INS_IsMemoryRead(ins)/* && INS_MemoryOperandCount(ins) == 2/* && INS_MemoryOperandIsRead(ins, 1)*/)
+	if (INS_IsMemoryRead(ins))
 	{
 		INS_InsertCall(
 			ins,
@@ -204,5 +219,49 @@ VOID Fuzzer_Instrunction(INS ins, void*)
 			IARG_ADDRINT, INS_Address(ins),
 			IARG_END
 		);
+	}
+}
+
+VOID BblHandle(ADDRINT addr/*, UINT32 trc*/)
+{
+	//if (headInsAddr != 0)
+	if (addr < headInsAddr || addr > tailInsAddr)
+		return;
+
+	map<ADDRINT, UINT32>::iterator bbl = traversed.find(addr);
+	if (bbl == traversed.end())
+	{
+		traversed.insert(make_pair(addr, 1));
+	}
+	else
+	{
+		bbl->second++;
+	}
+}
+
+VOID Fuzzer_Trace(TRACE trc, void*)
+{
+	RTN *rtn = &TRACE_Rtn(trc);
+	if (!RTN_Valid(*rtn)) return;
+	//const string *rtnName = &RTN_Name(*rtn);
+
+	SEC *sec = &RTN_Sec(*rtn);
+	//const string *secName = &SEC_Name(*sec);
+
+	IMG *img = &SEC_Img(*sec);
+	//const string *imgName = &IMG_Name(*img);
+
+	if (IMG_IsMainExecutable(*img))
+	{
+		for (BBL bbl = TRACE_BblHead(trc); BBL_Valid(bbl); bbl = BBL_Next(bbl))
+		{
+			BBL_InsertCall(
+				bbl,
+				IPOINT_BEFORE, (AFUNPTR)BblHandle,
+				IARG_ADDRINT, INS_Address(BBL_InsHead(bbl)),
+				//IARG_ADDRINT, TRACE_NumBbl(trc),
+				IARG_END
+			);
+		}
 	}
 }

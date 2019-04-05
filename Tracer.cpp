@@ -67,6 +67,7 @@ VOID BblInstrumentation(
 	}
 }
 
+
 VOID Tracer_Trace(TRACE trace, void*)
 {
 	RTN *rtn = &TRACE_Rtn(trace);
@@ -79,19 +80,23 @@ VOID Tracer_Trace(TRACE trace, void*)
 	IMG *img = &SEC_Img(*sec);
 	const string *imgName = &IMG_Name(*img);
 
-	for (BBL bbl = TRACE_BblHead(trace); BBL_Valid(bbl); bbl = BBL_Next(bbl))
+	if (IMG_IsMainExecutable(*img))
 	{
-		BBL_InsertCall(
-			bbl,
-			IPOINT_BEFORE, (AFUNPTR)BblInstrumentation,
-			IARG_PTR, rtnName,
-			IARG_PTR, secName,
-			IARG_PTR, imgName,
-			IARG_ADDRINT, INS_Address(BBL_InsHead(bbl)),
-			IARG_ADDRINT, INS_Address(BBL_InsTail(bbl)),
-			IARG_END
-		);
+		for (BBL bbl = TRACE_BblHead(trace); BBL_Valid(bbl); bbl = BBL_Next(bbl))
+		{
+			BBL_InsertCall(
+				bbl,
+				IPOINT_BEFORE, (AFUNPTR)BblInstrumentation,
+				IARG_PTR, rtnName,
+				IARG_PTR, secName,
+				IARG_PTR, imgName,
+				IARG_ADDRINT, INS_Address(BBL_InsHead(bbl)),
+				IARG_ADDRINT, INS_Address(BBL_InsTail(bbl)),
+				IARG_END
+			);
+		}
 	}
+	
 }
 
 VOID Tracer_Fini(int exitCode, void*)
