@@ -261,9 +261,8 @@ VOID Fuzzer_Instrunction(INS ins, void*)
 	}
 }
 
-VOID BblHandle(ADDRINT addr/*, UINT32 trc*/)
+VOID BblHandle(ADDRINT addr)
 {
-	//if (headInsAddr != 0)
 	if (addr < headInsAddr || addr > tailInsAddr)
 		return;
 
@@ -282,13 +281,10 @@ VOID Fuzzer_Trace(TRACE trc, void*)
 {
 	RTN *rtn = &TRACE_Rtn(trc);
 	if (!RTN_Valid(*rtn)) return;
-	//const string *rtnName = &RTN_Name(*rtn);
 
 	SEC *sec = &RTN_Sec(*rtn);
-	//const string *secName = &SEC_Name(*sec);
 
 	IMG *img = &SEC_Img(*sec);
-	//const string *imgName = &IMG_Name(*img);
 
 	if (IMG_IsMainExecutable(*img))
 	{
@@ -298,7 +294,6 @@ VOID Fuzzer_Trace(TRACE trc, void*)
 				bbl,
 				IPOINT_BEFORE, (AFUNPTR)BblHandle,
 				IARG_ADDRINT, INS_Address(BBL_InsHead(bbl)),
-				//IARG_ADDRINT, TRACE_NumBbl(trc),
 				IARG_END
 			);
 		}
