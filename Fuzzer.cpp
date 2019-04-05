@@ -153,10 +153,6 @@ VOID HandleTail(ADDRINT addr)
 				for (map<ADDRINT, UINT32>::iterator arg = args.begin(); arg != args.end(); arg++)
 					DEREFERENCED(arg->first) = (rand() & UINT32_MAX) ^ (rand() & UINT32_MAX);
 
-			//fout.open("outdata.txt", ios::app);
-			//fout << "ROUND " << ROUNDS_COUNT - rounds << endl;
-			//fout.close();
-
 			fout.open("outdata.txt", ios::app);
 			fout << "[ROUND] " << ROUNDS_COUNT - rounds << endl;
 
@@ -256,9 +252,6 @@ VOID Fuzzer_Image(IMG img, void*)
 VOID ReplaceLocal(ADDRINT addr)
 {
 	UINT32 replace = rand() & UINT32_MAX;
-	//fout.open("outdata.txt", ios::app);
-	//fout << "[LOCAL] " << hexstr(addr) << " is " << hexstr(DEREFERENCED(addr)) << ", replaced with " << hexstr(replace) << endl;
-	//fout.close();
 	DEREFERENCED(addr) = replace;
 }
 
