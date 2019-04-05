@@ -15,9 +15,11 @@ ofstream fout;
 ADDRINT headInsAddr = 0;
 ADDRINT tailInsAddr = 0;
 CONTEXT backup;
+CONTEXT working;
 BOOL dontInstrument = false;
 INT32 rounds = ROUNDS_COUNT;
-map<ADDRINT, UINT32> locals;
+map<ADDRINT, UINT32> locals_backup;
+vector<ADDRINT> locals;
 map<ADDRINT, UINT32> args;
 
 VOID ShowArguments()
@@ -77,40 +79,36 @@ VOID HandleTail(ADDRINT addr)
 		if (rounds != 0)
 		{
 			printf("_ROUND: %d\n", ROUNDS_COUNT - rounds + 1);
-			CONTEXT tmp;
-			PIN_SaveContext(&backup, &tmp);
+			PIN_SaveContext(&backup, &working);
 			rounds--;
 			
 			if (!args.empty())
 				for (map<ADDRINT, UINT32>::iterator arg = args.begin(); arg != args.end(); arg++)
 					DEREFERENCED(arg->first) = rand() & UINT32_MAX;
 
-			if (!locals.empty())
-				for (map<ADDRINT, UINT32>::iterator local = locals.begin(); local != locals.end(); local++)
-					DEREFERENCED(local->first) = rand() & UINT32_MAX;
-
-			PIN_ExecuteAt(&tmp);
+			locals.clear();
+			PIN_ExecuteAt(&working);
 		}
 		else
 		{
 			headInsAddr = 0;
 			tailInsAddr = 0;
-			CONTEXT tmp;
-			PIN_SaveContext(&backup, &tmp);
+			PIN_SaveContext(&backup, &working);
 
 			if (!args.empty())
 				for (map<ADDRINT, UINT32>::iterator arg = args.begin(); arg != args.end(); arg++)
 					DEREFERENCED(arg->first) = arg->second;
 
-			if (!locals.empty())
-				for (map<ADDRINT, UINT32>::iterator local = locals.begin(); local != locals.end(); local++)
+			if (!locals_backup.empty())
+				for (map<ADDRINT, UINT32>::iterator local = locals_backup.begin(); local != locals_backup.end(); local++)
 					DEREFERENCED(local->first) = local->second;
 
 			locals.clear();
+			locals_backup.clear();
 			args.clear();
 			rounds = ROUNDS_COUNT;
 			dontInstrument = true;
-			PIN_ExecuteAt(&tmp);
+			PIN_ExecuteAt(&working);
 		}
 	}
 }
@@ -128,7 +126,7 @@ VOID Fuzzer_Image(IMG img, void*)
 				for (rtn; RTN_Valid(rtn); rtn = RTN_Next(rtn))
 				{
 					const string *name = &RTN_Name(rtn);
-					if (name->compare("print_test") != 0)
+					if (! (name->compare("print_test") == 0 || name->compare("main") == 0))
 						continue;
 
 					RTN_Open(rtn);
@@ -159,6 +157,13 @@ VOID Fuzzer_Image(IMG img, void*)
 	}
 }
 
+VOID ReplaceLocal(ADDRINT addr)
+{
+	UINT32 replace = rand() & UINT32_MAX;
+	printf("[LOCAL] 0x%08x is 0x%08x, replaced with 0x%08x\n", addr, DEREFERENCED(addr), replace);
+	DEREFERENCED(addr) = replace;
+}
+
 VOID StackReadHandle(ADDRINT esp, ADDRINT ebp, ADDRINT readAddr, ADDRINT insAddr)
 {
 	if (insAddr < headInsAddr || insAddr > tailInsAddr)
@@ -167,11 +172,21 @@ VOID StackReadHandle(ADDRINT esp, ADDRINT ebp, ADDRINT readAddr, ADDRINT insAddr
 	if (!(readAddr >= esp && readAddr < ebp))
 		return;
 
-	map<ADDRINT, UINT32>::iterator cell = locals.find(readAddr);
-	if (cell == locals.end())
+	map<ADDRINT, UINT32>::iterator cell = locals_backup.find(readAddr);
+	if (cell == locals_backup.end())
 	{
-		locals.insert(make_pair(readAddr, DEREFERENCED(readAddr)));
-		printf("local 0x%08x is 0x%08x\n", readAddr, DEREFERENCED(readAddr));
+		locals_backup.insert(make_pair(readAddr, DEREFERENCED(readAddr)));
+		locals.push_back(readAddr);
+		ReplaceLocal(readAddr);
+	}
+	else
+	{
+		vector<ADDRINT>::iterator addr = find(locals.begin(), locals.end(), readAddr);
+		if (addr == locals.end())
+		{
+			locals.push_back(readAddr);
+			ReplaceLocal(readAddr);
+		}
 	}
 }
 
