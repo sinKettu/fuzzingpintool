@@ -11,16 +11,39 @@ using namespace std;
 #define ARGUMENTS_COUNT 4
 #define DEREFERENCED(x) *(reinterpret_cast<ADDRINT*>(x))
 
+/* GLOBALS */
+
+// Output stream
 ofstream fout;
+
+// Fuzzing routine head instruction address
 ADDRINT headInsAddr = 0;
+
+// Fuzzing routine tail instruction address
 ADDRINT tailInsAddr = 0;
+
+// Routine saved valid context
 CONTEXT backup;
+
+// Changed context to run
 CONTEXT working;
+
+// used to not instrument last routine execution
 BOOL dontInstrument = false;
+
+// Rounds counter
 INT32 rounds = ROUNDS_COUNT;
+
+// Saved valid local variables
 map<ADDRINT, UINT32> locals_backup;
+
+// Used to not change one local variable twice
 vector<ADDRINT> locals;
+
+// Saved routine arguments
 map<ADDRINT, UINT32> args;
+
+// Basic block counter
 map<ADDRINT, UINT32> traversed;
 
 VOID ShowArguments()
@@ -65,6 +88,9 @@ VOID ShowContext(CONTEXT *ctxt)
 
 VOID ShowTraversedBbl()
 {
+	if (traversed.empty())
+		return;
+
 	bool flag = false;
 	if (!fout.is_open())
 	{
@@ -178,7 +204,7 @@ VOID Fuzzer_Image(IMG img, void*)
 				for (rtn; RTN_Valid(rtn); rtn = RTN_Next(rtn))
 				{
 					const string *name = &RTN_Name(rtn);
-					if (! (name->compare("print_test") == 0 || name->compare("main") == 0))
+					if ((name->compare("__scrt_common_main_seh") == 0 || name->compare("__SEH_prolog4") == 0 || name->compare("_IsProcessorFeaturePresent@4") == 0 || name->compare("_should_initialize_environment") == 0 || name->compare("__scrt_acquire_startup_lock") == 0 || name->compare("pre_c_initialization") == 0 || name->compare("__scrt_initialize_onexit_tables") == 0 || name->compare("_initialize_default_precision") == 0))
 						continue;
 
 					RTN_Open(rtn);
