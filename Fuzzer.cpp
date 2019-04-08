@@ -168,7 +168,7 @@ VOID HandleTail(ADDRINT addr)
 			fout << "\tLocals:\n";
 			if (!locals.empty())
 				for (vector<ADDRINT>::iterator local = locals.begin(); local != locals.end(); local++)
-					fout << "\t" << hexstr(local) << " value set " << hexstr(DEREFERENCED(local)) << endl;
+					fout << "\t" << hexstr(*local) << " value set " << hexstr(DEREFERENCED(*local)) << endl;
 			else
 				fout << "\tNone\n";
 			fout.close();
