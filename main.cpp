@@ -15,10 +15,10 @@ int main(int argc, char *argv[])
 
 	PIN_SetSyntaxIntel();
 	
-	//TRACE_AddInstrumentFunction(Tracer_Trace, 0);
 	IMG_AddInstrumentFunction(Fuzzer_Image, 0);
 	INS_AddInstrumentFunction(Fuzzer_Instrunction, 0);
 	TRACE_AddInstrumentFunction(Fuzzer_Trace, 0);
+
 	PIN_StartProgram();
 
 	return 0;
