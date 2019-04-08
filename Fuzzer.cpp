@@ -10,6 +10,7 @@ using namespace std;
 #define ROUNDS_COUNT 5
 #define ARGUMENTS_COUNT 4
 #define DEREFERENCED(x) *(reinterpret_cast<ADDRINT*>(x))
+#define EDGE pair<ADDRINT, ADDRINT>
 
 /* GLOBALS */
 
@@ -43,8 +44,10 @@ vector<ADDRINT> locals;
 // Saved routine arguments
 map<ADDRINT, UINT32> args;
 
-// Basic block counter
-map<ADDRINT, UINT32> traversed;
+map<EDGE, UINT32> traversed;
+
+// Last visited basic block
+ADDRINT lastBbl = 0;
 
 VOID ShowArguments()
 {
@@ -98,12 +101,11 @@ VOID ShowTraversedBbl()
 		flag = true;
 	}
 
-	map<ADDRINT, UINT32>::iterator bbl;
-	for (bbl = traversed.begin(); bbl != traversed.end(); bbl++)
+	for (map<EDGE, UINT32>::iterator edge = traversed.begin(); edge != traversed.end(); edge++)
 	{
-		fout << "\t" << hexstr(bbl->first) << ":\t" << bbl->second << endl;
+		fout << "\t(" << hexstr(edge->first.first) << ")->(" << hexstr(edge->first.second) << "):\t" << edge->second << endl;
 	}
-
+	
 	if (flag)
 		fout.close();
 }
@@ -171,6 +173,7 @@ VOID HandleTail(ADDRINT addr)
 				fout << "\tNone\n";
 			fout.close();
 
+			lastBbl = 0;
 			locals.clear();
 			PIN_ExecuteAt(&working);
 		}
@@ -189,7 +192,7 @@ VOID HandleTail(ADDRINT addr)
 					DEREFERENCED(local->first) = local->second;
 
 			fout.open("outdata.txt", ios::app);
-			fout << "[BBL]" << endl;
+			fout << "[BBL EDGES]" << endl;
 			ShowTraversedBbl();
 			fout << endl;
 			fout.close();
@@ -298,20 +301,24 @@ VOID Fuzzer_Instrunction(INS ins, void*)
 	}
 }
 
-VOID BblHandle(ADDRINT addr)
+VOID BblHandle(ADDRINT addr, ADDRINT prevAddr)
 {
 	if (addr < headInsAddr || addr > tailInsAddr)
 		return;
 
-	map<ADDRINT, UINT32>::iterator bbl = traversed.find(addr);
-	if (bbl == traversed.end())
+	if (lastBbl != 0)
 	{
-		traversed.insert(make_pair(addr, 1));
+		EDGE tmp = make_pair(lastBbl, addr);
+		lastBbl = addr;
+
+		map<EDGE, UINT32>::iterator it = traversed.find(tmp);
+		if (it == traversed.end())
+			traversed.insert(make_pair(tmp, 1));
+		else
+			it->second++;
 	}
 	else
-	{
-		bbl->second++;
-	}
+		lastBbl = addr;
 }
 
 VOID Fuzzer_Trace(TRACE trc, void*)
@@ -322,8 +329,10 @@ VOID Fuzzer_Trace(TRACE trc, void*)
 	IMG img = SEC_Img(sec);
 	if (IMG_IsMainExecutable(img))
 	{
+		
 		for (BBL bbl = TRACE_BblHead(trc); BBL_Valid(bbl); bbl = BBL_Next(bbl))
 		{
+			BBL prev = BBL_Prev(bbl);
 			BBL_InsertCall(
 				bbl,
 				IPOINT_BEFORE, (AFUNPTR)BblHandle,
