@@ -9,15 +9,15 @@ KNOB<string> KnobTestList(KNOB_MODE_WRITEONCE, "pintool", "test", "error", "List
 int main(int argc, char *argv[])
 {
 	printf("Hello\n\n");
-	                           // Необходима, чтобы была возможность искать функции в образе
+	
+	PIN_InitSymbols();	// Необходима, чтобы была возможность искать функции в образе
+	
 	if (PIN_Init(argc, argv))
 	{
 		return -1;
 	}
 
-	PIN_InitSymbols();
 	PIN_SetSyntaxIntel();
-
 	if (KnobOutline.Value())
 	{
 		IMG_AddInstrumentFunction(Fuzzer_Outline, 0);

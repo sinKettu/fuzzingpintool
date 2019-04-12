@@ -394,6 +394,7 @@ BOOL Fuzzer_LoadList(string path)
 		string tmp;
 		getline(fin, tmp);
 		routinesToTest.push_back(tmp);
+		cout << tmp << endl;
 	}
 
 	return true;
@@ -404,7 +405,8 @@ ADDRINT head = 0, tail = 0;
 UINT32 eaxExitVal;
 string rName;
 vector<pair<ADDRINT, ADDRINT>> readings;
-map<ADDRINT, string> rtnDisasm;
+vector<ADDRINT> insAdresses;
+vector<string> insDisasms;
 vector<CONTEXT> calls;
 
 VOID OutpitTestInfo()
@@ -412,9 +414,9 @@ VOID OutpitTestInfo()
 	fout.open("outdata.txt", ios::app);
 	fout << "[NAME] " << rName << endl;
 	fout << endl << "[DISASSEMBLED]" << endl;
-	for (map<ADDRINT, string>::iterator iter = rtnDisasm.begin(); iter != rtnDisasm.end(); iter++)
+	for (UINT32 i = 0; i < insAdresses.size(); i++)
 	{
-		fout << hexstr(iter->first) << "\t" << iter->second << endl;
+		fout << hexstr(insAdresses.at(i)) << "\t" << insDisasms.at(i) << endl;
 	}
 	fout << endl;
 	fout << endl << "[ENTER CONTEXT]" << endl;
@@ -431,28 +433,24 @@ VOID OutpitTestInfo()
 
 VOID InsHeadHandler(ADDRINT hAddr, ADDRINT tAddr, string* name, CONTEXT *ctxt)
 {
-	cout << "1" << endl;
 	if (head != 0 && tail != 0)
 	{
 		CONTEXT tmp;
 		PIN_SaveContext(ctxt, &tmp);
 		calls.push_back(tmp);
-		cout << "2" << endl;
 	}
 
 	head = hAddr;
 	tail = tAddr;
 	rName = *name;
 	PIN_SaveContext(ctxt, &enterContext);
-	cout << "3" << endl;
 }
 
 VOID InsTailHandler(ADDRINT addr, ADDRINT eax)
 {
-	cout << "4" << endl;
 	if (addr == tail)
 	{
-		eaxExitVal = DEREFERENCED(eax);
+		eaxExitVal = eax;
 		OutpitTestInfo();
 
 		head = 0;
@@ -460,7 +458,8 @@ VOID InsTailHandler(ADDRINT addr, ADDRINT eax)
 		rName = "";
 		eaxExitVal = 0;
 		readings.clear();
-		rtnDisasm.clear();
+		insAdresses.clear();
+		insDisasms.clear();
 	}
 
 	if (!calls.empty())
@@ -469,27 +468,24 @@ VOID InsTailHandler(ADDRINT addr, ADDRINT eax)
 		calls.pop_back();
 		PIN_ExecuteAt(&next);
 	}
-	cout << "5" << endl;
+
 }
 
 VOID InsMemReadHandler(ADDRINT insAddr, ADDRINT rdAddr)
 {
-	cout << "6" << endl;
 	if (insAddr >= head && insAddr <= tail)
 	{
 		readings.push_back(make_pair(insAddr, rdAddr));
 	}
-	cout << "7" << endl;
 }
 
-VOID InsHandler(ADDRINT addr, string* disasm)
+VOID InsHandler(ADDRINT addr, string *dasm)
 {
-	cout << "8" << endl;
 	if (addr >= head && addr <= tail)
 	{
-		rtnDisasm.insert(make_pair(addr, *disasm));
+		insAdresses.push_back(addr);
+		insDisasms.push_back(*dasm);
 	}
-	cout << "9" << endl;
 }
 
 VOID Fuzzer_Test(RTN rtn, void*)
@@ -520,9 +516,9 @@ VOID Fuzzer_Test(RTN rtn, void*)
 			IARG_END
 		);
 
+		
 		for (INS ins = RTN_InsHead(rtn); INS_Valid(ins); ins = INS_Next(ins))
 		{
-			string *disasm = const_cast<string *>(&INS_Disassemble(ins));
 
 			if (INS_IsMemoryRead(ins))
 			{
@@ -539,9 +535,10 @@ VOID Fuzzer_Test(RTN rtn, void*)
 				ins,
 				IPOINT_BEFORE, (AFUNPTR)InsHandler,
 				IARG_ADDRINT, INS_Address(ins),
-				IARG_PTR, disasm,
+				IARG_PTR, new string(INS_Disassemble(ins)),
 				IARG_END
 			);
+
 		}
 
 		RTN_Close(rtn);
