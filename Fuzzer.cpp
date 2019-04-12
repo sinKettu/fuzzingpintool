@@ -3,8 +3,9 @@
 #include <string>
 #include <map>
 #include <fstream>
-#include "FuzzingPinTool.h"
 #include <time.h>
+#include <iostream>
+#include "FuzzingPinTool.h"
 using namespace std;
 
 #define ROUNDS_COUNT 5
@@ -48,6 +49,8 @@ map<EDGE, UINT32> traversed;
 
 // Last visited basic block
 ADDRINT lastBbl = 0;
+
+map<string, vector<string>> outline;
 
 VOID ShowArguments()
 {
@@ -340,5 +343,153 @@ VOID Fuzzer_Trace(TRACE trc, void*)
 				IARG_END
 			);
 		}
+	}
+}
+
+VOID Fuzzer_Outline(IMG img, void*)
+{
+	vector<string> routines;
+	string imgName = IMG_Name(img);
+	for (SEC sec = IMG_SecHead(img); SEC_Valid(sec); sec = SEC_Next(sec))
+	{
+		if (SEC_Name(sec).compare(".text"))
+			continue;
+
+		for (RTN rtn = SEC_RtnHead(sec); RTN_Valid(rtn); rtn = RTN_Next(rtn))
+		{
+			routines.push_back(RTN_Name(rtn));
+		}
+	}
+
+	outline.insert(make_pair(imgName, routines));
+}
+
+VOID Fuzzer_OutlineOutput(INT32 exitCode, void*)
+{
+	fout.open("outdata.txt");
+	for (map<string, vector<string>>::iterator image = outline.begin(); image != outline.end(); image++)
+	{
+		fout << image->first << endl;
+		for (UINT32 i = 0; i < image->second.size(); i++)
+		{
+			fout << "\t" << image->second.at(i) << endl;
+		}
+		image->second.clear();
+	}
+	fout.close();
+}
+
+vector<string> routinesToTest;
+
+BOOL Fuzzer_LoadList(string path)
+{
+	ifstream fin;
+	fin.open(path.c_str());
+	if (!fin.is_open())
+		return false;
+
+	routinesToTest.clear();
+	while (!fin.eof())
+	{
+		string tmp;
+		getline(fin, tmp);
+		routinesToTest.push_back(tmp);
+	}
+
+	return true;
+}
+
+struct READING
+{
+	ADDRINT Ins;
+	ADDRINT Mem;
+};
+
+CONTEXT enterContext;
+ADDRINT head, tail;
+UINT32 eaxExitVal;
+string rName;
+vector<READING> readings;
+vector<string> rtnDisasm;
+
+VOID InsHeadHandler(ADDRINT hAddr, ADDRINT tAddr, string* name, CONTEXT *ctxt)
+{
+	head = hAddr;
+	tail = tAddr;
+	rName = *name;
+	PIN_SaveContext(ctxt, &enterContext);
+}
+
+VOID InsTailHandler(ADDRINT eax)
+{
+	eaxExitVal = DEREFERENCED(eax);
+}
+
+VOID InsMemReadHandler(ADDRINT insAddr, ADDRINT rdAddr)
+{
+	READING tmp;
+	tmp.Ins = insAddr;
+	tmp.Mem = rdAddr;
+	readings.push_back(tmp);
+}
+
+VOID InsHandler(ADDRINT addr, string* disasm)
+{
+	string tmp = hexstr(addr) + "\t" + *disasm;
+	rtnDisasm.push_back(tmp);
+}
+
+VOID Fuzzer_Test(RTN rtn, void*)
+{
+	string *rtnName = const_cast<string *>(&RTN_Name(rtn));
+	if (find(routinesToTest.begin(), routinesToTest.end(), *rtnName) != routinesToTest.end())
+	{
+		RTN_Open(rtn);
+
+		INS head = RTN_InsHead(rtn);
+		INS tail = RTN_InsTail(rtn);
+
+		INS_InsertCall(
+			head,
+			IPOINT_BEFORE, (AFUNPTR)InsHeadHandler,
+			IARG_ADDRINT, INS_Address(head),
+			IARG_ADDRINT, INS_Address(tail),
+			IARG_PTR, rtnName,
+			IARG_CONTEXT,
+			IARG_END
+		);
+
+		INS_InsertCall(
+			tail,
+			IPOINT_BEFORE, (AFUNPTR)InsTailHandler,
+			IARG_REG_VALUE, REG_EAX,
+			IARG_END
+		);
+
+		for (INS ins = RTN_InsHead(rtn); INS_Valid(ins); ins = INS_Next(ins))
+		{
+			string *disasm = const_cast<string *>(&INS_Disassemble(ins));
+
+			if (INS_IsMemoryRead(ins))
+			{
+				INS_InsertCall(
+					ins,
+					IPOINT_BEFORE, (AFUNPTR)InsMemReadHandler,
+					IARG_ADDRINT, INS_Address(ins),
+					IARG_MEMORYREAD_EA,
+					IARG_END
+				);
+			}
+
+			INS_InsertCall(
+				ins,
+				IPOINT_BEFORE, (AFUNPTR)InsHandler,
+				IARG_ADDRINT, INS_Address(ins),
+				IARG_PTR, disasm,
+				IARG_END
+			);
+		}
+
+		RTN_Close(rtn);
 	}
 }
