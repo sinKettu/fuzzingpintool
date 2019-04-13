@@ -15,9 +15,9 @@ using namespace std;
 
 /* GLOBALS */
 
-//
+////
 // Used in Fuzzer
-//
+////
 
 // Output stream
 ofstream fout;
@@ -54,9 +54,9 @@ map<EDGE, UINT32> traversed;
 // Last visited basic block
 ADDRINT lastBbl = 0;
 
-//
+////
 // Used in Outline
-//
+////
 
 map<string, vector<string>> outline;
 
@@ -66,12 +66,6 @@ map<string, vector<string>> outline;
 
 // Context of first instruction
 CONTEXT enterContext;
-
-// Address of head instruction
-ADDRINT head = 0;
-
-// Address of tail instruction
-ADDRINT tail = 0;
 
 // Value of EAX in the tail
 UINT32 eaxExitVal;
@@ -463,7 +457,7 @@ VOID OutpitTestInfo()
 
 VOID InsHeadHandler(ADDRINT hAddr, ADDRINT tAddr, string* name, CONTEXT *ctxt)
 {
-	if (head != 0 && tail != 0)
+	if (headInsAddr != 0 && tailInsAddr != 0)
 	{
 		CONTEXT tmp;
 		PIN_SaveContext(ctxt, &tmp);
@@ -471,21 +465,21 @@ VOID InsHeadHandler(ADDRINT hAddr, ADDRINT tAddr, string* name, CONTEXT *ctxt)
 		return;
 	}
 
-	head = hAddr;
-	tail = tAddr;
+	headInsAddr = hAddr;
+	tailInsAddr = tAddr;
 	rName = *name;
 	PIN_SaveContext(ctxt, &enterContext);
 }
 
 VOID InsTailHandler(ADDRINT addr, ADDRINT eax)
 {
-	if (addr == tail)
+	if (addr == tailInsAddr)
 	{
 		eaxExitVal = eax;
 		OutpitTestInfo();
 
-		head = 0;
-		tail = 0;
+		headInsAddr = 0;
+		tailInsAddr = 0;
 		rName = "";
 		eaxExitVal = 0;
 		readings.clear();
@@ -504,7 +498,7 @@ VOID InsTailHandler(ADDRINT addr, ADDRINT eax)
 
 VOID InsMemReadHandler(ADDRINT insAddr, ADDRINT rdAddr)
 {
-	if (insAddr >= head && insAddr <= tail)
+	if (insAddr >= headInsAddr && insAddr <= tailInsAddr)
 	{
 		readings.push_back(make_pair(insAddr, rdAddr));
 	}
@@ -512,7 +506,7 @@ VOID InsMemReadHandler(ADDRINT insAddr, ADDRINT rdAddr)
 
 VOID InsHandler(ADDRINT addr, string *dasm)
 {
-	if (addr >= head && addr <= tail)
+	if (addr >= headInsAddr && addr <= tailInsAddr)
 	{
 		insAdresses.push_back(addr);
 		insDisasms.push_back(*dasm);
