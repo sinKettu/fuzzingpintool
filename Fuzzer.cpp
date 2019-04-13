@@ -15,6 +15,10 @@ using namespace std;
 
 /* GLOBALS */
 
+//
+// Used in Fuzzer
+//
+
 // Output stream
 ofstream fout;
 
@@ -50,7 +54,42 @@ map<EDGE, UINT32> traversed;
 // Last visited basic block
 ADDRINT lastBbl = 0;
 
+//
+// Used in Outline
+//
+
 map<string, vector<string>> outline;
+
+////
+// Used in Test
+////
+
+// Context of first instruction
+CONTEXT enterContext;
+
+// Address of head instruction
+ADDRINT head = 0;
+
+// Address of tail instruction
+ADDRINT tail = 0;
+
+// Value of EAX in the tail
+UINT32 eaxExitVal;
+
+// Routine name
+string rName;
+
+// Saved info about readings from memory
+vector<pair<ADDRINT, ADDRINT>> readings;
+
+// Addresses of disassembled instructions
+vector<ADDRINT> insAdresses;
+
+// Disasm-d instructions
+vector<string> insDisasms;
+
+// Saved enties to routines from 'routinesToTest'
+vector<CONTEXT> calls;
 
 VOID ShowArguments()
 {
@@ -400,19 +439,6 @@ BOOL Fuzzer_LoadList(string path)
 	return true;
 }
 
-CONTEXT enterContext;
-ADDRINT head = 0, tail = 0;
-UINT32 eaxExitVal;
-string rName;
-vector<pair<ADDRINT, ADDRINT>> readings;
-vector<ADDRINT> insAdresses;
-vector<string> insDisasms;
-
-vector<CONTEXT> calls;
-vector<string> names;
-vector<ADDRINT> heads;
-vector<ADDRINT> tails;
-
 VOID OutpitTestInfo()
 {
 	fout.open("outdata.txt", ios::app);
@@ -442,9 +468,6 @@ VOID InsHeadHandler(ADDRINT hAddr, ADDRINT tAddr, string* name, CONTEXT *ctxt)
 		CONTEXT tmp;
 		PIN_SaveContext(ctxt, &tmp);
 		calls.push_back(tmp);
-		//heads.push_back(hAddr);
-		//tails.push_back(tAddr);
-		//names.push_back(*name);
 		return;
 	}
 
@@ -473,19 +496,10 @@ VOID InsTailHandler(ADDRINT addr, ADDRINT eax)
 		{
 			CONTEXT next = calls.back();
 			calls.pop_back();
-			//head = heads.back();
-			//heads.pop_back();
-			//tail = tails.back();
-			//tails.pop_back();
-			//rName = names.back();
-			//names.pop_back();
 
 			PIN_ExecuteAt(&next);
 		}
 	}
-
-	
-
 }
 
 VOID InsMemReadHandler(ADDRINT insAddr, ADDRINT rdAddr)
