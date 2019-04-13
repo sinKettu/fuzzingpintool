@@ -407,7 +407,11 @@ string rName;
 vector<pair<ADDRINT, ADDRINT>> readings;
 vector<ADDRINT> insAdresses;
 vector<string> insDisasms;
+
 vector<CONTEXT> calls;
+vector<string> names;
+vector<ADDRINT> heads;
+vector<ADDRINT> tails;
 
 VOID OutpitTestInfo()
 {
@@ -438,6 +442,10 @@ VOID InsHeadHandler(ADDRINT hAddr, ADDRINT tAddr, string* name, CONTEXT *ctxt)
 		CONTEXT tmp;
 		PIN_SaveContext(ctxt, &tmp);
 		calls.push_back(tmp);
+		//heads.push_back(hAddr);
+		//tails.push_back(tAddr);
+		//names.push_back(*name);
+		return;
 	}
 
 	head = hAddr;
@@ -460,14 +468,23 @@ VOID InsTailHandler(ADDRINT addr, ADDRINT eax)
 		readings.clear();
 		insAdresses.clear();
 		insDisasms.clear();
+
+		if (!calls.empty())
+		{
+			CONTEXT next = calls.back();
+			calls.pop_back();
+			//head = heads.back();
+			//heads.pop_back();
+			//tail = tails.back();
+			//tails.pop_back();
+			//rName = names.back();
+			//names.pop_back();
+
+			PIN_ExecuteAt(&next);
+		}
 	}
 
-	if (!calls.empty())
-	{
-		CONTEXT next = calls.back();
-		calls.pop_back();
-		PIN_ExecuteAt(&next);
-	}
+	
 
 }
 
