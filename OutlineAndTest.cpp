@@ -62,6 +62,8 @@ VOID Fuzzer_OutlineOutput(INT32 exitCode, void*)
 }
 
 vector<string> routinesToTest;
+map<ADDRINT, ADDRINT> rangesToTest;
+vector<ADDRINT> addressesToSaveContext;
 
 BOOL Fuzzer_LoadList(string path)
 {
@@ -71,13 +73,84 @@ BOOL Fuzzer_LoadList(string path)
 		return false;
 
 	routinesToTest.clear();
+	string line;
+	getline(fin, line);
+
+	bool routinesFlag = false;
+	bool rangeFlag = false;
+	bool contextFlag = false;
+
 	while (!fin.eof())
 	{
-		string tmp;
-		getline(fin, tmp);
-		routinesToTest.push_back(tmp);
+		if (!line.compare("[ROUTINES]"))
+		{
+			getline(fin, line);
+			routinesFlag = true;
+			rangeFlag = false;
+			contextFlag = false;
+			continue;
+		}
+		if (!line.compare("[RANGE]"))
+		{
+			getline(fin, line);
+			routinesFlag = false;
+			rangeFlag = true;
+			contextFlag = false;
+			continue;
+		}
+		if (!line.compare("[CONTEXT]"))
+		{
+			getline(fin, line);
+			routinesFlag = false;
+			rangeFlag = false;
+			contextFlag = true;
+			continue;
+		}
+
+		if (routinesFlag)
+		{
+			if (line[0] != '#' && line.length())
+				routinesToTest.push_back(line);
+			
+			getline(fin, line);
+			continue;
+		}
+		if (rangeFlag)
+		{
+			if (line[0] != '#' && line.length())
+			{
+				UINT32 first, second;
+				char *ptr;
+				first = strtoul(line.c_str(), &ptr, 16);
+				if (first)
+				{
+					second = strtoul(ptr, nullptr, 16);
+					if (second && second < first)
+						rangesToTest.insert(make_pair(first, second));
+				}
+				
+			}
+
+			getline(fin, line);
+			continue;
+		}
+		if (contextFlag)
+		{
+			if (line[0] != '#' && line.length())
+			{
+				UINT32 addr = strtoul(line.c_str(), nullptr, 16);
+				if (addr)
+					addressesToSaveContext.push_back(addr);
+			}
+
+			getline(fin, line);
+			continue;
+		}
+		
+		getline(fin, line);
 	}
 
+	fin.close();
 	return true;
 }
 
@@ -148,7 +221,7 @@ VOID InsHandler(ADDRINT addr, string *dasm)
 	disasms.back().insert(make_pair(addr, *dasm));
 }
 
-VOID Fuzzer_Test(RTN rtn, void*)
+VOID Fuzzer_RtnTest(RTN rtn, void*)
 {
 	string *rtnName = const_cast<string *>(&RTN_Name(rtn));
 	if (find(routinesToTest.begin(), routinesToTest.end(), *rtnName) != routinesToTest.end())
@@ -199,4 +272,23 @@ VOID Fuzzer_Test(RTN rtn, void*)
 		RTN_Close(rtn);
 	}
 
+}
+
+VOID Fuzzer_InsTest(INS ins, void*)
+{
+	if (!rangesToTest.size() && !addressesToSaveContext.size())
+		return;
+
+	UINT32 addr = INS_Address(ins);
+	if (find(addressesToSaveContext.begin(), addressesToSaveContext.end(), addr) != addressesToSaveContext.end())
+	{
+		INS_InsertCall(
+			ins,
+			IPOINT_BEFORE, (AFUNPTR)ContextHandle,
+			IARG_CONTEXT,
+			IARG_END
+		);
+	}
+
+	if ()
 }

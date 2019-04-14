@@ -1,0 +1,12 @@
+# List of routines to test
+[ROUTINES]
+# rtn1
+# rtn2
+
+# List of instructions ranges to test (addresses in hex)
+[RANGE]
+# 06ae34 06aedf
+
+# List of instructions to save context (addresses in hex)
+[CONTEXT]
+# 06ae40

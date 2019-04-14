@@ -21,7 +21,8 @@ VOID Fuzzer_Trace(TRACE trc, void*);
 VOID Fuzzer_Outline(IMG img, void*);
 VOID Fuzzer_OutlineOutput(INT32 exitCode, void*);
 
-VOID Fuzzer_Test(RTN rtn, void*);
+VOID Fuzzer_RtnTest(RTN rtn, void*);
+VOID Fuzzer_InsTest(INS ins, void*);
 BOOL Fuzzer_LoadList(string path);
 
 // Common

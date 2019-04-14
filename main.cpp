@@ -27,7 +27,7 @@ int main(int argc, char *argv[])
 	{
 		if (Fuzzer_LoadList(KnobTestList.Value()))
 		{
-			RTN_AddInstrumentFunction(Fuzzer_Test, 0);
+			RTN_AddInstrumentFunction(Fuzzer_RtnTest, 0);
 		}
 	}
 	else
