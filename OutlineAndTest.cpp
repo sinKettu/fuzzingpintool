@@ -106,7 +106,7 @@ VOID OutputTestInfo(
 	OatFout.close();
 }
 
-VOID InsHeadHandler(ADDRINT hAddr, ADDRINT tAddr, string* name, CONTEXT *ctxt)
+VOID InsHeadHandler(CONTEXT *ctxt)
 {
 	map<ADDRINT, string> tmpDs;
 	tmpDs.clear();
@@ -159,9 +159,6 @@ VOID Fuzzer_Test(RTN rtn, void*)
 		INS_InsertCall(
 			head,
 			IPOINT_BEFORE, (AFUNPTR)InsHeadHandler,
-			IARG_ADDRINT, INS_Address(head),
-			IARG_ADDRINT, INS_Address(tail),
-			IARG_PTR, rtnName,
 			IARG_CONTEXT,
 			IARG_END
 		);
