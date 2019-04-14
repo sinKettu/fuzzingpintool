@@ -1,5 +1,13 @@
 #pragma once
 
+#include <stdio.h>
+#include <vector>
+#include <string>
+#include <map>
+#include <fstream>
+#include <time.h>
+#include <iostream>
+
 #include "pin.H"
 #include "asm/unistd.h"
 
