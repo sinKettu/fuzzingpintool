@@ -105,14 +105,14 @@ VOID ShowContext(CONTEXT *ctxt)
 		flag = true;
 	}
 
-	fout << "\tEAX: " << hexstr(PIN_GetContextReg(ctxt, REG_EAX));
-	fout << "\tEBX: " << hexstr(PIN_GetContextReg(ctxt, REG_EBX));
-	fout << "\tECX: " << hexstr(PIN_GetContextReg(ctxt, REG_ECX));
-	fout << "\tEDX: " << hexstr(PIN_GetContextReg(ctxt, REG_EDX)) << endl;
-	fout << "\tESI: " << hexstr(PIN_GetContextReg(ctxt, REG_ESI));
-	fout << "\tEDI: " << hexstr(PIN_GetContextReg(ctxt, REG_EDI));
-	fout << "\tESP: " << hexstr(PIN_GetContextReg(ctxt, REG_ESP));
-	fout << "\tEBP: " << hexstr(PIN_GetContextReg(ctxt, REG_EBP)) << endl;
+	fout << "EAX: " << hexstr(PIN_GetContextReg(ctxt, REG_EAX)) << endl;
+	fout << "EBX: " << hexstr(PIN_GetContextReg(ctxt, REG_EBX)) << endl;
+	fout << "ECX: " << hexstr(PIN_GetContextReg(ctxt, REG_ECX)) << endl;
+	fout << "EDX: " << hexstr(PIN_GetContextReg(ctxt, REG_EDX)) << endl;
+	fout << "ESI: " << hexstr(PIN_GetContextReg(ctxt, REG_ESI)) << endl;
+	fout << "EDI: " << hexstr(PIN_GetContextReg(ctxt, REG_EDI)) << endl;
+	fout << "ESP: " << hexstr(PIN_GetContextReg(ctxt, REG_ESP)) << endl;
+	fout << "EBP: " << hexstr(PIN_GetContextReg(ctxt, REG_EBP)) << endl;
 
 	if (flag)
 		fout.close();
