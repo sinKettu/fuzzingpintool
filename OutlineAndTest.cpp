@@ -84,38 +84,32 @@ BOOL Fuzzer_LoadList(string path)
 	{
 		if (!line.compare("[ROUTINES]"))
 		{
-			getline(fin, line);
 			routinesFlag = true;
 			rangeFlag = false;
 			contextFlag = false;
-			continue;
-		}
-		if (!line.compare("[RANGE]"))
-		{
 			getline(fin, line);
+		}
+		else if (!line.compare("[RANGE]"))
+		{
 			routinesFlag = false;
 			rangeFlag = true;
 			contextFlag = false;
-			continue;
-		}
-		if (!line.compare("[CONTEXT]"))
-		{
 			getline(fin, line);
+		}
+		else if (!line.compare("[CONTEXT]"))
+		{
 			routinesFlag = false;
 			rangeFlag = false;
 			contextFlag = true;
-			continue;
+			getline(fin, line);
 		}
 
 		if (routinesFlag)
 		{
 			if (line[0] != '#' && line.length())
 				routinesToTest.push_back(line);
-			
-			getline(fin, line);
-			continue;
 		}
-		if (rangeFlag)
+		else if (rangeFlag)
 		{
 			if (line[0] != '#' && line.length())
 			{
@@ -130,11 +124,8 @@ BOOL Fuzzer_LoadList(string path)
 				}
 				
 			}
-
-			getline(fin, line);
-			continue;
 		}
-		if (contextFlag)
+		else if (contextFlag)
 		{
 			if (line[0] != '#' && line.length())
 			{
@@ -142,9 +133,6 @@ BOOL Fuzzer_LoadList(string path)
 				if (addr)
 					addressesToSaveContext.push_back(addr);
 			}
-
-			getline(fin, line);
-			continue;
 		}
 		
 		getline(fin, line);
