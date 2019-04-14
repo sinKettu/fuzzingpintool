@@ -37,7 +37,9 @@ VOID Fuzzer_Outline(IMG img, void*)
 
 		for (RTN rtn = SEC_RtnHead(sec); RTN_Valid(rtn); rtn = RTN_Next(rtn))
 		{
-			routines.push_back(RTN_Name(rtn));
+			RTN_Open(rtn);
+			routines.push_back(hexstr(INS_Address(RTN_InsHead(rtn))) + "\t" + RTN_Name(rtn));
+			RTN_Close(rtn);
 		}
 	}
 
