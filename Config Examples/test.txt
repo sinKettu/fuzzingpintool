@@ -3,7 +3,7 @@
 # rtn1
 # rtn2
 
-# List of instructions ranges to test (addresses in hex)
+# List of instructions ranges to test (addresses in hex). NO INTERSECTIONS!
 [RANGE]
 # 06ae34 06aedf
 

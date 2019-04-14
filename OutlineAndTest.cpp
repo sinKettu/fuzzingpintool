@@ -125,7 +125,7 @@ BOOL Fuzzer_LoadList(string path)
 				if (first)
 				{
 					second = strtoul(ptr, nullptr, 16);
-					if (second && second < first)
+					if (second)
 						rangesToTest.insert(make_pair(first, second));
 				}
 				
@@ -274,6 +274,60 @@ VOID Fuzzer_RtnTest(RTN rtn, void*)
 
 }
 
+vector<string> rangeDisasms;
+vector<pair<ADDRINT, ADDRINT>> rangeReadings;
+CONTEXT rangeHeadCtxt;
+
+VOID ContextHandle(ADDRINT addr, CONTEXT *ctxt)
+{
+	OatFout.open("outdata.txt", ios::app);
+	OatFout << "\n[CONTEXT] " << hexstr(addr) << endl;
+	OutputContext(&OatFout, ctxt);
+	OatFout.close();
+}
+
+VOID RangeHeadHandle(ADDRINT addr, string *dasm, CONTEXT *ctxt)
+{
+	rangeDisasms.push_back(hexstr(addr) + "\t" + *dasm);
+	PIN_SaveContext(ctxt, &rangeHeadCtxt);
+}
+
+VOID RangeReadInsHandle(ADDRINT addr, string *dasm, ADDRINT readAddr)
+{
+	rangeDisasms.push_back(hexstr(addr) + "\t" + *dasm);
+	rangeReadings.push_back(make_pair(addr, readAddr));
+}
+
+VOID RangeInsHandle(ADDRINT addr, string *dasm)
+{
+	rangeDisasms.push_back(hexstr(addr) + "\t" + *dasm);
+}
+
+VOID RangeTailHandle(ADDRINT head, ADDRINT tail)
+{
+	OatFout.open("outdata.txt", ios::app);
+	OatFout << endl << "[RANGE] " << hexstr(head) << " " << hexstr(tail) << endl;
+	OatFout << "[DISASSEMBLED]" << endl;
+	for (UINT32 i = 0; i < rangeDisasms.size(); i++)
+	{
+		OatFout << "\t" << rangeDisasms.at(i) << endl;
+	}
+	OatFout << endl << "[ENTRY CONTEXT]" << endl;
+	OutputContext(&OatFout, &rangeHeadCtxt);
+	OatFout << endl << "[READINGS]" << endl;
+	for (UINT32 i = 0; i < rangeReadings.size(); i++)
+	{
+		OatFout << "At " << hexstr(rangeReadings.at(i).first) << " from " << hexstr(rangeReadings.at(i).second) << endl;
+	}
+	OatFout.close();
+
+	rangeDisasms.clear();
+	rangeReadings.clear();
+}
+
+map<ADDRINT, ADDRINT>::iterator curRange;
+BOOL rangeInProgress = false;
+
 VOID Fuzzer_InsTest(INS ins, void*)
 {
 	if (!rangesToTest.size() && !addressesToSaveContext.size())
@@ -285,10 +339,63 @@ VOID Fuzzer_InsTest(INS ins, void*)
 		INS_InsertCall(
 			ins,
 			IPOINT_BEFORE, (AFUNPTR)ContextHandle,
+			IARG_ADDRINT, addr,
 			IARG_CONTEXT,
 			IARG_END
 		);
 	}
 
-	if ()
+	if (rangeInProgress)
+	{
+		if (INS_IsMemoryRead(ins))
+		{
+			INS_InsertCall(
+				ins,
+				IPOINT_BEFORE, (AFUNPTR)RangeReadInsHandle,
+				IARG_ADDRINT, addr,
+				IARG_PTR, new string(INS_Disassemble(ins)),
+				IARG_MEMORYREAD_EA,
+				IARG_END
+			);
+		}
+		else
+		{
+			INS_InsertCall(
+				ins,
+				IPOINT_BEFORE, (AFUNPTR)RangeInsHandle,
+				IARG_ADDRINT, addr,
+				IARG_PTR, new string(INS_Disassemble(ins)),
+				IARG_END
+			);
+		}
+
+		if (curRange->second == addr)
+		{
+			INS_InsertCall(
+				ins,
+				IPOINT_BEFORE, (AFUNPTR)RangeTailHandle,
+				IARG_ADDRINT, curRange->first,
+				IARG_ADDRINT, curRange->second,
+				IARG_END
+			);
+			rangeInProgress = false;
+		}
+	}
+	else
+	{
+		curRange = rangesToTest.find(addr);
+		if (curRange != rangesToTest.end() && curRange->first == addr)
+		{
+			rangeInProgress = true;
+			INS_InsertCall(
+				ins,
+				IPOINT_BEFORE, (AFUNPTR)RangeHeadHandle,
+				IARG_ADDRINT, addr,
+				IARG_PTR, new string(INS_Disassemble(ins)),
+				IARG_CONTEXT,
+				IARG_END
+			);
+		}
+	}
+	
 }
