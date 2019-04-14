@@ -64,26 +64,19 @@ map<string, vector<string>> outline;
 // Used in Test
 ////
 
-// Context of first instruction
-CONTEXT enterContext;
-
-// Value of EAX in the tail
-UINT32 eaxExitVal;
-
 // Routine name
 string rName;
 
 // Saved info about readings from memory
-vector<pair<ADDRINT, ADDRINT>> readings;
+vector<vector<pair<ADDRINT, ADDRINT>>> readings;
 
-// Addresses of disassembled instructions
-vector<ADDRINT> insAdresses;
+// listings of disassembled stack
+vector<map<ADDRINT, string>> disasms;
+//vector<vector<ADDRINT>> addresses;
+//vector<vector<string>> disasms;
 
-// Disasm-d instructions
-vector<string> insDisasms;
-
-// Saved enties to routines from 'routinesToTest'
-vector<CONTEXT> calls;
+// Enrty contexts stack
+vector<CONTEXT> contexts;
 
 VOID ShowArguments()
 {
@@ -433,84 +426,73 @@ BOOL Fuzzer_LoadList(string path)
 	return true;
 }
 
-VOID OutpitTestInfo()
+VOID OutpitTestInfo(
+	string name, 
+	CONTEXT *ctxt, 
+	map<ADDRINT, string> curDisasms, 
+	vector<pair<ADDRINT, ADDRINT>> curReads, 
+	UINT32 eax)
 {
 	fout.open("outdata.txt", ios::app);
-	fout << "[NAME] " << rName << endl;
+	fout << "[NAME] " << name << endl;
 	fout << endl << "[DISASSEMBLED]" << endl;
-	for (UINT32 i = 0; i < insAdresses.size(); i++)
+	for (map<ADDRINT, string>::iterator line = curDisasms.begin(); line != curDisasms.end(); line++)
 	{
-		fout << hexstr(insAdresses.at(i)) << "\t" << insDisasms.at(i) << endl;
+		fout << hexstr(line->first) << "\t" << line->second << endl;
 	}
 	fout << endl;
 	fout << endl << "[ENTER CONTEXT]" << endl;
-	ShowContext(&enterContext);
-	fout << endl << "[EXIT EAX] " << hexstr(eaxExitVal) << endl;
+	ShowContext(ctxt);
+	fout << endl << "[EXIT EAX] " << hexstr(eax) << endl;
 	fout << "[MEMORY READINGS]" << endl;
-	for (UINT32 i = 0; i < readings.size(); i++)
+	for (UINT32 i = 0; i < curReads.size(); i++)
 	{
-		fout << "At " << hexstr(readings.at(i).first) << " from " << hexstr(readings.at(i).second) << endl;
+		fout << "At " << hexstr(curReads.at(i).first) << " from " << hexstr(curReads.at(i).second) << endl;
 	}
 	fout << endl;
 	fout.close();
 }
 
+
+
 VOID InsHeadHandler(ADDRINT hAddr, ADDRINT tAddr, string* name, CONTEXT *ctxt)
 {
-	if (headInsAddr != 0 && tailInsAddr != 0)
-	{
-		CONTEXT tmp;
-		PIN_SaveContext(ctxt, &tmp);
-		calls.push_back(tmp);
-		return;
-	}
+	map<ADDRINT, string> tmpDs;
+	tmpDs.clear();
+	disasms.push_back(tmpDs);
+	
+	CONTEXT tmp;
+	PIN_SaveContext(ctxt, &tmp);
+	contexts.push_back(tmp);
 
-	headInsAddr = hAddr;
-	tailInsAddr = tAddr;
-	rName = *name;
-	PIN_SaveContext(ctxt, &enterContext);
+	vector<pair<ADDRINT, ADDRINT>> tmpReads;
+	tmpReads.clear();
+	readings.push_back(tmpReads);
 }
 
-VOID InsTailHandler(ADDRINT addr, ADDRINT eax)
+VOID InsTailHandler(ADDRINT addr, ADDRINT eax, string *rtnName)
 {
-	if (addr == tailInsAddr)
-	{
-		eaxExitVal = eax;
-		OutpitTestInfo();
+	OutpitTestInfo(
+		*rtnName, 
+		&contexts.back(), 
+		disasms.back(),
+		readings.back(),
+		eax
+	);
 
-		headInsAddr = 0;
-		tailInsAddr = 0;
-		rName = "";
-		eaxExitVal = 0;
-		readings.clear();
-		insAdresses.clear();
-		insDisasms.clear();
-
-		if (!calls.empty())
-		{
-			CONTEXT next = calls.back();
-			calls.pop_back();
-
-			PIN_ExecuteAt(&next);
-		}
-	}
+	contexts.pop_back();
+	disasms.pop_back();
+	readings.pop_back();
 }
 
 VOID InsMemReadHandler(ADDRINT insAddr, ADDRINT rdAddr)
 {
-	if (insAddr >= headInsAddr && insAddr <= tailInsAddr)
-	{
-		readings.push_back(make_pair(insAddr, rdAddr));
-	}
+	readings.back().push_back(make_pair(insAddr, rdAddr));
 }
 
 VOID InsHandler(ADDRINT addr, string *dasm)
 {
-	if (addr >= headInsAddr && addr <= tailInsAddr)
-	{
-		insAdresses.push_back(addr);
-		insDisasms.push_back(*dasm);
-	}
+	disasms.back().insert(make_pair(addr, *dasm));
 }
 
 VOID Fuzzer_Test(RTN rtn, void*)
@@ -532,19 +514,9 @@ VOID Fuzzer_Test(RTN rtn, void*)
 			IARG_CONTEXT,
 			IARG_END
 		);
-
-		INS_InsertCall(
-			tail,
-			IPOINT_BEFORE, (AFUNPTR)InsTailHandler,
-			IARG_ADDRINT, INS_Address(tail),
-			IARG_REG_VALUE, REG_EAX,
-			IARG_END
-		);
-
 		
 		for (INS ins = RTN_InsHead(rtn); INS_Valid(ins); ins = INS_Next(ins))
 		{
-
 			if (INS_IsMemoryRead(ins))
 			{
 				INS_InsertCall(
@@ -563,9 +535,18 @@ VOID Fuzzer_Test(RTN rtn, void*)
 				IARG_PTR, new string(INS_Disassemble(ins)),
 				IARG_END
 			);
-
 		}
+
+		INS_InsertCall(
+			tail,
+			IPOINT_BEFORE, (AFUNPTR)InsTailHandler,
+			IARG_ADDRINT, INS_Address(tail),
+			IARG_REG_VALUE, REG_EAX,
+			IARG_PTR, rtnName,
+			IARG_END
+		);
 
 		RTN_Close(rtn);
 	}
+
 }
