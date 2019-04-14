@@ -23,3 +23,7 @@ VOID Fuzzer_OutlineOutput(INT32 exitCode, void*);
 
 VOID Fuzzer_Test(RTN rtn, void*);
 BOOL Fuzzer_LoadList(string path);
+
+// Common
+
+VOID OutputContext(ofstream *fout, CONTEXT *ctxt);

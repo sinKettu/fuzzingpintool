@@ -29,6 +29,9 @@
     <ClCompile Include="Fuzzer.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="Common.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
     <ClCompile Include="OutlineAndTest.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>

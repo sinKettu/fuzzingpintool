@@ -1,3 +1,4 @@
+#pragma once
 #include "FuzzingPinTool.h"
 using namespace std;
 
@@ -9,11 +10,11 @@ using namespace std;
 /* GLOBALS */
 
 ////
-// Used in Fuzzer
+//	Used in Fuzzer
 ////
 
 // Output stream
-ofstream fout;
+ofstream FuzzerFout;
 
 // Fuzzing routine head instruction address
 ADDRINT headInsAddr = 0;
@@ -50,41 +51,19 @@ ADDRINT lastBbl = 0;
 VOID ShowArguments()
 {
 	bool flag = false;
-	if (!fout.is_open())
+	if (!FuzzerFout.is_open())
 	{
-		fout.open("outdata.txt", ios::app);
+		FuzzerFout.open("outdata.txt", ios::app);
 		flag = true;
 	}
 
 	for (map<ADDRINT, UINT32>::iterator arg = args.begin(); arg != args.end(); arg++)
 	{
-		fout << "\t" << hexstr(arg->first) << " --> " << hexstr(arg->second) << endl;
+		FuzzerFout << "\t" << hexstr(arg->first) << " --> " << hexstr(arg->second) << endl;
 	}
 
 	if (flag)
-		fout.close();
-}
-
-VOID ShowContext(CONTEXT *ctxt)
-{
-	bool flag = false;
-	if (!fout.is_open())
-	{
-		fout.open("outdata.txt", ios::app);
-		flag = true;
-	}
-
-	fout << "EAX: " << hexstr(PIN_GetContextReg(ctxt, REG_EAX)) << endl;
-	fout << "EBX: " << hexstr(PIN_GetContextReg(ctxt, REG_EBX)) << endl;
-	fout << "ECX: " << hexstr(PIN_GetContextReg(ctxt, REG_ECX)) << endl;
-	fout << "EDX: " << hexstr(PIN_GetContextReg(ctxt, REG_EDX)) << endl;
-	fout << "ESI: " << hexstr(PIN_GetContextReg(ctxt, REG_ESI)) << endl;
-	fout << "EDI: " << hexstr(PIN_GetContextReg(ctxt, REG_EDI)) << endl;
-	fout << "ESP: " << hexstr(PIN_GetContextReg(ctxt, REG_ESP)) << endl;
-	fout << "EBP: " << hexstr(PIN_GetContextReg(ctxt, REG_EBP)) << endl;
-
-	if (flag)
-		fout.close();
+		FuzzerFout.close();
 }
 
 VOID ShowTraversedBbl()
@@ -93,19 +72,19 @@ VOID ShowTraversedBbl()
 		return;
 
 	bool flag = false;
-	if (!fout.is_open())
+	if (!FuzzerFout.is_open())
 	{
-		fout.open("outdata.txt", ios::app);
+		FuzzerFout.open("outdata.txt", ios::app);
 		flag = true;
 	}
 
 	for (map<EDGE, UINT32>::iterator edge = traversed.begin(); edge != traversed.end(); edge++)
 	{
-		fout << "\t(" << hexstr(edge->first.first) << ")->(" << hexstr(edge->first.second) << "):\t" << edge->second << endl;
+		FuzzerFout << "\t(" << hexstr(edge->first.first) << ")->(" << hexstr(edge->first.second) << "):\t" << edge->second << endl;
 	}
 	
 	if (flag)
-		fout.close();
+		FuzzerFout.close();
 }
 
 VOID HandleHead(ADDRINT hAddr, ADDRINT tAddr, CONTEXT *ctxt, const string *name)
@@ -128,16 +107,16 @@ VOID HandleHead(ADDRINT hAddr, ADDRINT tAddr, CONTEXT *ctxt, const string *name)
 	tailInsAddr = tAddr;
 	srand(time(0));
 
-	fout.open("outdata.txt", ios::app);
-	fout << "\n[ROUTINE]\n\t" << *name << endl;
-	fout << "[HEAD]\n\t" << hexstr(hAddr) << endl;
-	fout << "[TAIL]\n\t" << hexstr(tAddr) << endl;
-	fout << "[CONTEXT]\n";
-	ShowContext(ctxt);
-	fout << "[" << ARGUMENTS_COUNT << " ARGUMENTS]" << endl;
+	FuzzerFout.open("outdata.txt", ios::app);
+	FuzzerFout << "\n[ROUTINE]\n\t" << *name << endl;
+	FuzzerFout << "[HEAD]\n\t" << hexstr(hAddr) << endl;
+	FuzzerFout << "[TAIL]\n\t" << hexstr(tAddr) << endl;
+	FuzzerFout << "[CONTEXT]\n";
+	OutputContext(&FuzzerFout, ctxt);
+	FuzzerFout << "[" << ARGUMENTS_COUNT << " ARGUMENTS]" << endl;
 	ShowArguments();
-	fout << endl;
-	fout.close();
+	FuzzerFout << endl;
+	FuzzerFout.close();
 }
 
 VOID HandleTail(ADDRINT addr)
@@ -153,23 +132,23 @@ VOID HandleTail(ADDRINT addr)
 				for (map<ADDRINT, UINT32>::iterator arg = args.begin(); arg != args.end(); arg++)
 					DEREFERENCED(arg->first) = (rand() & UINT32_MAX) ^ (rand() & UINT32_MAX);
 
-			fout.open("outdata.txt", ios::app);
-			fout << "[ROUND] " << ROUNDS_COUNT - rounds << endl;
+			FuzzerFout.open("outdata.txt", ios::app);
+			FuzzerFout << "[ROUND] " << ROUNDS_COUNT - rounds << endl;
 
-			fout << "\tArguments:\n";
+			FuzzerFout << "\tArguments:\n";
 			if (!args.empty())
 				for (map<ADDRINT, UINT32>::iterator arg = args.begin(); arg != args.end(); arg++)
-					fout << "\t" << hexstr(arg->first) << " value set " << hexstr(DEREFERENCED(arg->first)) << endl;
+					FuzzerFout << "\t" << hexstr(arg->first) << " value set " << hexstr(DEREFERENCED(arg->first)) << endl;
 			else
-				fout << "\tNone\n";
+				FuzzerFout << "\tNone\n";
 
-			fout << "\tLocals:\n";
+			FuzzerFout << "\tLocals:\n";
 			if (!locals.empty())
 				for (vector<ADDRINT>::iterator local = locals.begin(); local != locals.end(); local++)
-					fout << "\t" << hexstr(*local) << " value set " << hexstr(DEREFERENCED(*local)) << endl;
+					FuzzerFout << "\t" << hexstr(*local) << " value set " << hexstr(DEREFERENCED(*local)) << endl;
 			else
-				fout << "\tNone\n";
-			fout.close();
+				FuzzerFout << "\tNone\n";
+			FuzzerFout.close();
 
 			lastBbl = 0;
 			locals.clear();
@@ -189,11 +168,11 @@ VOID HandleTail(ADDRINT addr)
 				for (map<ADDRINT, UINT32>::iterator local = locals_backup.begin(); local != locals_backup.end(); local++)
 					DEREFERENCED(local->first) = local->second;
 
-			fout.open("outdata.txt", ios::app);
-			fout << "[BBL EDGES]" << endl;
+			FuzzerFout.open("outdata.txt", ios::app);
+			FuzzerFout << "[BBL EDGES]" << endl;
 			ShowTraversedBbl();
-			fout << endl;
-			fout.close();
+			FuzzerFout << endl;
+			FuzzerFout.close();
 
 			traversed.clear();
 			locals.clear();

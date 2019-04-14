@@ -1,17 +1,18 @@
+#pragma once
 #include "FuzzingPinTool.h"
 using namespace std;
 
-ofstream fout;
+ofstream OatFout;
 
-////
-// Used in Outline
-////
+/*
+ * Used in Outline
+ */
 
 map<string, vector<string>> outline;
 
-////
-// Used in Test
-////
+/*
+ * Used in Test
+ */
 
 // Routine name
 string rName;
@@ -21,33 +22,9 @@ vector<vector<pair<ADDRINT, ADDRINT>>> readings;
 
 // listings of disassembled stack
 vector<map<ADDRINT, string>> disasms;
-//vector<vector<ADDRINT>> addresses;
-//vector<vector<string>> disasms;
 
 // Enrty contexts stack
 vector<CONTEXT> contexts;
-
-VOID ShowContext(CONTEXT *ctxt)
-{
-	bool flag = false;
-	if (!fout.is_open())
-	{
-		fout.open("outdata.txt", ios::app);
-		flag = true;
-	}
-
-	fout << "EAX: " << hexstr(PIN_GetContextReg(ctxt, REG_EAX)) << endl;
-	fout << "EBX: " << hexstr(PIN_GetContextReg(ctxt, REG_EBX)) << endl;
-	fout << "ECX: " << hexstr(PIN_GetContextReg(ctxt, REG_ECX)) << endl;
-	fout << "EDX: " << hexstr(PIN_GetContextReg(ctxt, REG_EDX)) << endl;
-	fout << "ESI: " << hexstr(PIN_GetContextReg(ctxt, REG_ESI)) << endl;
-	fout << "EDI: " << hexstr(PIN_GetContextReg(ctxt, REG_EDI)) << endl;
-	fout << "ESP: " << hexstr(PIN_GetContextReg(ctxt, REG_ESP)) << endl;
-	fout << "EBP: " << hexstr(PIN_GetContextReg(ctxt, REG_EBP)) << endl;
-
-	if (flag)
-		fout.close();
-}
 
 VOID Fuzzer_Outline(IMG img, void*)
 {
@@ -69,17 +46,17 @@ VOID Fuzzer_Outline(IMG img, void*)
 
 VOID Fuzzer_OutlineOutput(INT32 exitCode, void*)
 {
-	fout.open("outdata.txt");
+	OatFout.open("outdata.txt");
 	for (map<string, vector<string>>::iterator image = outline.begin(); image != outline.end(); image++)
 	{
-		fout << image->first << endl;
+		OatFout << image->first << endl;
 		for (UINT32 i = 0; i < image->second.size(); i++)
 		{
-			fout << "\t" << image->second.at(i) << endl;
+			OatFout << "\t" << image->second.at(i) << endl;
 		}
 		image->second.clear();
 	}
-	fout.close();
+	OatFout.close();
 }
 
 vector<string> routinesToTest;
@@ -97,40 +74,37 @@ BOOL Fuzzer_LoadList(string path)
 		string tmp;
 		getline(fin, tmp);
 		routinesToTest.push_back(tmp);
-		cout << tmp << endl;
 	}
 
 	return true;
 }
 
-VOID OutpitTestInfo(
+VOID OutputTestInfo(
 	string name,
 	CONTEXT *ctxt,
 	map<ADDRINT, string> curDisasms,
 	vector<pair<ADDRINT, ADDRINT>> curReads,
 	UINT32 eax)
 {
-	fout.open("outdata.txt", ios::app);
-	fout << "[NAME] " << name << endl;
-	fout << endl << "[DISASSEMBLED]" << endl;
+	OatFout.open("outdata.txt", ios::app);
+	OatFout << "[NAME] " << name << endl;
+	OatFout << endl << "[DISASSEMBLED]" << endl;
 	for (map<ADDRINT, string>::iterator line = curDisasms.begin(); line != curDisasms.end(); line++)
 	{
-		fout << hexstr(line->first) << "\t" << line->second << endl;
+		OatFout << hexstr(line->first) << "\t" << line->second << endl;
 	}
-	fout << endl;
-	fout << endl << "[ENTER CONTEXT]" << endl;
-	ShowContext(ctxt);
-	fout << endl << "[EXIT EAX] " << hexstr(eax) << endl;
-	fout << "[MEMORY READINGS]" << endl;
+	OatFout << endl;
+	OatFout << endl << "[ENTER CONTEXT]" << endl;
+	OutputContext(&OatFout, ctxt);
+	OatFout << endl << "[EXIT EAX] " << hexstr(eax) << endl;
+	OatFout << "[MEMORY READINGS]" << endl;
 	for (UINT32 i = 0; i < curReads.size(); i++)
 	{
-		fout << "At " << hexstr(curReads.at(i).first) << " from " << hexstr(curReads.at(i).second) << endl;
+		OatFout << "At " << hexstr(curReads.at(i).first) << " from " << hexstr(curReads.at(i).second) << endl;
 	}
-	fout << endl;
-	fout.close();
+	OatFout << endl;
+	OatFout.close();
 }
-
-
 
 VOID InsHeadHandler(ADDRINT hAddr, ADDRINT tAddr, string* name, CONTEXT *ctxt)
 {
@@ -149,7 +123,7 @@ VOID InsHeadHandler(ADDRINT hAddr, ADDRINT tAddr, string* name, CONTEXT *ctxt)
 
 VOID InsTailHandler(ADDRINT addr, ADDRINT eax, string *rtnName)
 {
-	OutpitTestInfo(
+	OutputTestInfo(
 		*rtnName,
 		&contexts.back(),
 		disasms.back(),
