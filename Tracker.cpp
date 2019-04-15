@@ -3,12 +3,16 @@
 #include "FuzzingPinTool.h"
 using namespace std;
 
+typedef map<UINT8, vector<string>> FoundChars;
+
 ofstream TrackerFout;
 
 vector<UINT8> charsToTrack;
 vector<UINT16> shortsToTrack;
 vector<UINT32> intsToTrack;
 vector<string> stringsToTrack;
+
+FoundChars foundChars;
 
 BOOL Tracker_LoadList(string path)
 {
@@ -28,34 +32,34 @@ BOOL Tracker_LoadList(string path)
 	{
 		if (!line.compare("[1]"))
 		{
-			bool ch = true;
-			bool sh = false;
-			bool in = false;
-			bool st = false;
+			ch = true;
+			sh = false;
+			in = false;
+			st = false;
 			getline(fin, line);
 		}
 		else if (!line.compare("[2]"))
 		{
-			bool ch = false;
-			bool sh = true;
-			bool in = false;
-			bool st = false;
+			ch = false;
+			sh = true;
+			in = false;
+			st = false;
 			getline(fin, line);
 		}
 		else if (!line.compare("[4]"))
 		{
-			bool ch = false;
-			bool sh = false;
-			bool in = true;
-			bool st = false;
+			ch = false;
+			sh = false;
+			in = true;
+			st = false;
 			getline(fin, line);
 		}
 		else if (!line.compare("[c]"))
 		{
-			bool ch = false;
-			bool sh = false;
-			bool in = false;
-			bool st = true;
+			ch = false;
+			sh = false;
+			in = false;
+			st = true;
 			getline(fin, line);
 		}
 
@@ -103,4 +107,60 @@ BOOL Tracker_LoadList(string path)
 
 	fin.close();
 	return true;
+}
+
+VOID Tracker_Fini(INT32 exitCode, void*)
+{
+	TrackerFout.open("outdata.txt", ios::app);
+	if (!foundChars.empty())
+	{
+		for (FoundChars::iterator iter = foundChars.begin(); iter != foundChars.end(); iter++)
+		{
+			TrackerFout << endl << "[CHAR] " << hexstr(iter->first) << endl;
+			for (vector<string>::iterator one = iter->second.begin(); one != iter->second.end(); one++)
+			{
+				TrackerFout << *one << endl;
+			}
+		}
+	}
+	TrackerFout.close();
+}
+
+VOID ReadCharHandle(ADDRINT rAddr, ADDRINT insAddr, string* rtnName, string* disasm)
+{
+	UINT8 val = static_cast<UINT8>(DEREFERENCED(rAddr));
+	if (find(charsToTrack.begin(), charsToTrack.end(), val) != charsToTrack.end())
+	{
+		FoundChars::iterator iter = foundChars.find(val);
+		string tmpStr = *rtnName + "\t\t:\t" + hexstr(insAddr) + "\t:\t" + *disasm;
+		if (iter == foundChars.end())
+		{
+			vector<string> tmpVec;
+			tmpVec.push_back(tmpStr);
+
+			foundChars.insert(make_pair(val, tmpVec));
+		}
+		else
+		{
+			iter->second.push_back(tmpStr);
+		}
+	}
+}
+
+VOID Tracker_Instruction(INS ins, void*)
+{
+	if (!charsToTrack.empty() && INS_IsMemoryRead(ins) && INS_MemoryReadSize(ins) == 1)
+	{
+		RTN rtn = INS_Rtn(ins);
+		string *name = const_cast<string*>(&RTN_Name(rtn));
+		INS_InsertCall(
+			ins,
+			IPOINT_BEFORE, (AFUNPTR)ReadCharHandle,
+			IARG_MEMORYREAD_EA,
+			IARG_ADDRINT, INS_Address(ins),
+			IARG_PTR, name,
+			IARG_PTR, new string(INS_Disassemble(ins)),
+			IARG_END
+		);
+	}
 }

@@ -4,7 +4,6 @@ using namespace std;
 
 #define ROUNDS_COUNT 5
 #define ARGUMENTS_COUNT 4
-#define DEREFERENCED(x) *(reinterpret_cast<ADDRINT*>(x))
 #define EDGE pair<ADDRINT, ADDRINT>
 
 /* GLOBALS */

@@ -36,7 +36,8 @@ int main(int argc, char *argv[])
 	{
 		if (Tracker_LoadList(KnobTrackerList.Value()))
 		{
-
+			INS_AddInstrumentFunction(Tracker_Instruction, 0);
+			PIN_AddFiniFunction(Tracker_Fini, 0);
 		}
 	}
 	else
