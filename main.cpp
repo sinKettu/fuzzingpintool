@@ -5,6 +5,7 @@ using namespace std;
 
 KNOB<BOOL> KnobOutline(KNOB_MODE_WRITEONCE, "pintool", "outline", "", "Show images and routines");
 KNOB<string> KnobTestList(KNOB_MODE_WRITEONCE, "pintool", "test", "error", "List of routines to test");
+KNOB<string> KnobTrackerList(KNOB_MODE_WRITEONCE, "pintool", "track", "error", "List of values to track");
 
 int main(int argc, char *argv[])
 {
@@ -29,6 +30,13 @@ int main(int argc, char *argv[])
 		{
 			RTN_AddInstrumentFunction(Test_Routine, 0);
 			INS_AddInstrumentFunction(Test_Instruction, 0);
+		}
+	}
+	else if (KnobTrackerList.Value().compare("error"))
+	{
+		if (Tracker_LoadList(KnobTrackerList.Value()))
+		{
+
 		}
 	}
 	else

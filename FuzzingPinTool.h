@@ -22,6 +22,8 @@ VOID Test_Routine(RTN rtn, void*);
 VOID Test_Instruction(INS ins, void*);
 BOOL Test_LoadList(string path);
 
+BOOL Tracker_LoadList(string path);
+
 // Common
 
 VOID OutputContext(ofstream *fout, CONTEXT *ctxt);
