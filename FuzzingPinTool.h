@@ -11,19 +11,16 @@
 #include "pin.H"
 #include "asm/unistd.h"
 
-VOID Tracer_Trace(TRACE trace, void*);
-VOID Tracer_Fini(int exitCode, void*);
-
 VOID Fuzzer_Image(IMG img, void*);
 VOID Fuzzer_Instrunction(INS ins, void*);
 VOID Fuzzer_Trace(TRACE trc, void*);
 
-VOID Fuzzer_Outline(IMG img, void*);
-VOID Fuzzer_OutlineOutput(INT32 exitCode, void*);
+VOID Outline_Image(IMG img, void*);
+VOID Outline_Fini(INT32 exitCode, void*);
 
-VOID Fuzzer_RtnTest(RTN rtn, void*);
-VOID Fuzzer_InsTest(INS ins, void*);
-BOOL Fuzzer_LoadList(string path);
+VOID Test_Routine(RTN rtn, void*);
+VOID Test_Instruction(INS ins, void*);
+BOOL Test_LoadList(string path);
 
 // Common
 

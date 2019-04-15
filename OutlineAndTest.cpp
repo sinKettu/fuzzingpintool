@@ -26,7 +26,7 @@ vector<map<ADDRINT, string>> disasms;
 // Enrty contexts stack
 vector<CONTEXT> contexts;
 
-VOID Fuzzer_Outline(IMG img, void*)
+VOID Outline_Image(IMG img, void*)
 {
 	vector<string> routines;
 	string imgName = IMG_Name(img);
@@ -46,7 +46,7 @@ VOID Fuzzer_Outline(IMG img, void*)
 	outline.insert(make_pair(imgName, routines));
 }
 
-VOID Fuzzer_OutlineOutput(INT32 exitCode, void*)
+VOID Outline_Fini(INT32 exitCode, void*)
 {
 	OatFout.open("outdata.txt");
 	for (map<string, vector<string>>::iterator image = outline.begin(); image != outline.end(); image++)
@@ -65,7 +65,7 @@ vector<string> routinesToTest;
 map<ADDRINT, ADDRINT> rangesToTest;
 vector<ADDRINT> addressesToSaveContext;
 
-BOOL Fuzzer_LoadList(string path)
+BOOL Test_LoadList(string path)
 {
 	ifstream fin;
 	fin.open(path.c_str());
@@ -209,7 +209,7 @@ VOID InsHandler(ADDRINT addr, string *dasm)
 	disasms.back().insert(make_pair(addr, *dasm));
 }
 
-VOID Fuzzer_RtnTest(RTN rtn, void*)
+VOID Test_Routine(RTN rtn, void*)
 {
 	string *rtnName = const_cast<string *>(&RTN_Name(rtn));
 	if (find(routinesToTest.begin(), routinesToTest.end(), *rtnName) != routinesToTest.end())
@@ -316,7 +316,7 @@ VOID RangeTailHandle(ADDRINT head, ADDRINT tail)
 map<ADDRINT, ADDRINT>::iterator curRange;
 BOOL rangeInProgress = false;
 
-VOID Fuzzer_InsTest(INS ins, void*)
+VOID Test_Instruction(INS ins, void*)
 {
 	if (!rangesToTest.size() && !addressesToSaveContext.size())
 		return;

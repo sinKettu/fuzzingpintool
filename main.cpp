@@ -20,15 +20,15 @@ int main(int argc, char *argv[])
 	PIN_SetSyntaxIntel();
 	if (KnobOutline.Value())
 	{
-		IMG_AddInstrumentFunction(Fuzzer_Outline, 0);
-		PIN_AddFiniFunction(Fuzzer_OutlineOutput, 0);
+		IMG_AddInstrumentFunction(Outline_Image, 0);
+		PIN_AddFiniFunction(Outline_Fini, 0);
 	}
 	else if (KnobTestList.Value().compare("error"))
 	{
-		if (Fuzzer_LoadList(KnobTestList.Value()))
+		if (Test_LoadList(KnobTestList.Value()))
 		{
-			RTN_AddInstrumentFunction(Fuzzer_RtnTest, 0);
-			INS_AddInstrumentFunction(Fuzzer_InsTest, 0);
+			RTN_AddInstrumentFunction(Test_Routine, 0);
+			INS_AddInstrumentFunction(Test_Instruction, 0);
 		}
 	}
 	else
