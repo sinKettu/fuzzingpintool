@@ -24,7 +24,7 @@ int main(int argc, char *argv[])
 		IMG_AddInstrumentFunction(Outline_Image, 0);
 		PIN_AddFiniFunction(Outline_Fini, 0);
 	}
-	else if (KnobTestList.Value().compare("error"))
+	if (KnobTestList.Value().compare("error"))
 	{
 		if (Test_LoadList(KnobTestList.Value()))
 		{
@@ -32,7 +32,7 @@ int main(int argc, char *argv[])
 			INS_AddInstrumentFunction(Test_Instruction, 0);
 		}
 	}
-	else if (KnobTrackerList.Value().compare("error"))
+	if (KnobTrackerList.Value().compare("error"))
 	{
 		if (Tracker_LoadList(KnobTrackerList.Value()))
 		{
