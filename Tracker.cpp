@@ -132,7 +132,7 @@ VOID ReadCharHandle(ADDRINT rAddr, ADDRINT insAddr, string* rtnName, string* dis
 	if (find(charsToTrack.begin(), charsToTrack.end(), val) != charsToTrack.end())
 	{
 		FoundChars::iterator iter = foundChars.find(val);
-		string tmpStr = *rtnName + "\t\t:\t" + hexstr(insAddr) + "\t:\t" + *disasm;
+		string tmpStr = *rtnName + " : " + hexstr(insAddr) + " : " + *disasm;
 		if (iter == foundChars.end())
 		{
 			vector<string> tmpVec;
