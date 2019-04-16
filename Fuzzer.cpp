@@ -196,11 +196,8 @@ VOID Fuzzer_Image(IMG img, void*)
 				RTN rtn = SEC_RtnHead(sec);
 				for (rtn; RTN_Valid(rtn); rtn = RTN_Next(rtn))
 				{
-					const string *name = &RTN_Name(rtn);
-					if ((name->compare("__scrt_common_main_seh") == 0 || name->compare("__SEH_prolog4") == 0 || name->compare("_IsProcessorFeaturePresent@4") == 0 || name->compare("_should_initialize_environment") == 0 || name->compare("__scrt_acquire_startup_lock") == 0 || name->compare("pre_c_initialization") == 0 || name->compare("__scrt_initialize_onexit_tables") == 0 || name->compare("_initialize_default_precision") == 0))
-						continue;
-
 					RTN_Open(rtn);
+					const string *name = &RTN_Name(rtn);
 					INS head = RTN_InsHead(rtn);
 					INS tail = RTN_InsTail(rtn);
 					
@@ -305,7 +302,6 @@ VOID Fuzzer_Trace(TRACE trc, void*)
 	IMG img = SEC_Img(sec);
 	if (IMG_IsMainExecutable(img))
 	{
-		
 		for (BBL bbl = TRACE_BblHead(trc); BBL_Valid(bbl); bbl = BBL_Next(bbl))
 		{
 			BBL prev = BBL_Prev(bbl);
