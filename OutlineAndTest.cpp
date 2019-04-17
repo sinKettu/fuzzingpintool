@@ -80,8 +80,10 @@ BOOL Test_LoadList(string path)
 	bool rangeFlag = false;
 	bool contextFlag = false;
 
-	while (!fin.eof())
+	while (true)
 	{
+		getline(fin, line);
+
 		if (!line.compare("[ROUTINES]"))
 		{
 			routinesFlag = true;
@@ -135,7 +137,8 @@ BOOL Test_LoadList(string path)
 			}
 		}
 		
-		getline(fin, line);
+		if (fin.eof())
+			break;
 	}
 
 	fin.close();

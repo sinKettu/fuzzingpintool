@@ -29,9 +29,9 @@ BOOL Tracker_LoadList(string path)
 	bool st = false;
 
 	string line;
-	getline(fin, line);
-	while (!fin.eof())
+	while (true)
 	{
+		getline(fin, line);
 		if (!line.compare("[1]"))
 		{
 			ch = true;
@@ -104,7 +104,8 @@ BOOL Tracker_LoadList(string path)
 				stringsToTrack.push_back(line);
 		}
 
-		getline(fin, line);
+		if (fin.eof())
+			break;
 	}
 
 	fin.close();
