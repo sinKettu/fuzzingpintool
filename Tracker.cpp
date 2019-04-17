@@ -161,6 +161,7 @@ VOID ReadCharHandle(ADDRINT rAddr, ADDRINT insAddr, string* rtnName, string* dis
 	}
 }
 
+// make it more beautiful
 VOID ReadStrHandle(ADDRINT rAddr, ADDRINT insAddr, string *name, string *disasm)
 {
 	ADDRINT *base = reinterpret_cast<ADDRINT *>(DEREFERENCED(rAddr));
