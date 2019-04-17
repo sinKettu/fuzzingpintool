@@ -4,6 +4,7 @@
 using namespace std;
 
 typedef map<UINT8, vector<string>> FoundChars;
+typedef map<string, vector<string>> FoundStrings;
 
 ofstream TrackerFout;
 
@@ -13,6 +14,7 @@ vector<UINT32> intsToTrack;
 vector<string> stringsToTrack;
 
 FoundChars foundChars;
+FoundStrings foundStrings;
 
 BOOL Tracker_LoadList(string path)
 {
@@ -123,6 +125,17 @@ VOID Tracker_Fini(INT32 exitCode, void*)
 			}
 		}
 	}
+	if (!foundStrings.empty())
+	{
+		for (FoundStrings::iterator iter = foundStrings.begin(); iter != foundStrings.end(); iter++)
+		{
+			TrackerFout << endl << "[STRING] " << iter->first << endl;
+			for (vector<string>::iterator one = iter->second.begin(); one != iter->second.end(); one++)
+			{
+				TrackerFout << *one << endl;
+			}
+		}
+	}
 	TrackerFout.close();
 }
 
@@ -147,20 +160,90 @@ VOID ReadCharHandle(ADDRINT rAddr, ADDRINT insAddr, string* rtnName, string* dis
 	}
 }
 
+VOID ReadStrHandle(ADDRINT rAddr, ADDRINT insAddr, string *name, string *disasm)
+{
+	ADDRINT *base = reinterpret_cast<ADDRINT *>(DEREFERENCED(rAddr));
+	char *c = new char[4];
+	memset(c, 0, 4);
+	PIN_SafeCopy(c, base, 4);
+	if (*c == 0)
+		return;
+
+	UINT32 bb = *(reinterpret_cast<UINT32 *>(c));
+	delete[] c;
+	for (UINT32 i = 0; i < stringsToTrack.size(); i++)
+	{
+		UINT32 sb = *(reinterpret_cast<UINT32 *>(const_cast<char *>(stringsToTrack.at(i).c_str())));
+		if (sb == bb)
+		{
+			UINT32 strLength = stringsToTrack.at(i).length();
+			c = new char[strLength];
+			memset(c, 0, strLength);
+			PIN_SafeCopy(c, base, strLength);
+			if (strlen(c) == strLength && !stringsToTrack.at(i).compare(c))
+			{
+				delete[] c;
+				FoundStrings::iterator iter = foundStrings.find(stringsToTrack.at(i));
+				string tmpStr = *name + " : " + hexstr(insAddr) + " : " + *disasm;
+				if (iter == foundStrings.end())
+				{
+					vector<string> tmpVec;
+					tmpVec.push_back(tmpStr);
+
+					foundStrings.insert(make_pair(stringsToTrack.at(i), tmpVec));
+				}
+				else
+				{
+					iter->second.push_back(tmpStr);
+				}
+			}
+			else
+			{
+				delete[] c;
+				continue;
+			}
+		}
+		else
+		{
+			continue;
+		}
+	}
+}
+
 VOID Tracker_Instruction(INS ins, void*)
 {
-	if (!charsToTrack.empty() && INS_IsMemoryRead(ins) && INS_MemoryReadSize(ins) == 1)
+	if (!charsToTrack.empty() &&  INS_IsMemoryRead(ins) && INS_MemoryReadSize(ins) == 1)
 	{
 		RTN rtn = INS_Rtn(ins);
-		string *name = const_cast<string*>(&RTN_Name(rtn));
-		INS_InsertCall(
-			ins,
-			IPOINT_BEFORE, (AFUNPTR)ReadCharHandle,
-			IARG_MEMORYREAD_EA,
-			IARG_ADDRINT, INS_Address(ins),
-			IARG_PTR, name,
-			IARG_PTR, new string(INS_Disassemble(ins)),
-			IARG_END
-		);
+		if (RTN_Valid(rtn))
+		{
+			string *name = const_cast<string*>(&RTN_Name(rtn));
+			INS_InsertCall(
+				ins,
+				IPOINT_BEFORE, (AFUNPTR)ReadCharHandle,
+				IARG_MEMORYREAD_EA,
+				IARG_ADDRINT, INS_Address(ins),
+				IARG_PTR, name,
+				IARG_PTR, new string(INS_Disassemble(ins)),
+				IARG_END
+			);
+		}
+	}
+	if (!stringsToTrack.empty() && INS_IsMemoryRead(ins))
+	{
+		RTN rtn = INS_Rtn(ins);
+		if (RTN_Valid(rtn))
+		{
+			string *name = const_cast<string*>(&RTN_Name(rtn));
+			INS_InsertCall(
+				ins,
+				IPOINT_BEFORE, (AFUNPTR)ReadStrHandle,
+				IARG_MEMORYREAD_EA,
+				IARG_ADDRINT, INS_Address(ins),
+				IARG_PTR, name,
+				IARG_PTR, new string(INS_Disassemble(ins)),
+				IARG_END
+			);
+		}
 	}
 }
