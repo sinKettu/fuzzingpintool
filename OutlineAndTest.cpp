@@ -32,9 +32,6 @@ VOID Outline_Image(IMG img, void*)
 	string imgName = IMG_Name(img);
 	for (SEC sec = IMG_SecHead(img); SEC_Valid(sec); sec = SEC_Next(sec))
 	{
-		if (SEC_Name(sec).compare(".text"))
-			continue;
-
 		for (RTN rtn = SEC_RtnHead(sec); RTN_Valid(rtn); rtn = RTN_Next(rtn))
 		{
 			RTN_Open(rtn);
