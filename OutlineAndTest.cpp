@@ -2,6 +2,9 @@
 #include "FuzzingPinTool.h"
 using namespace std;
 
+typedef vector<map<ADDRINT, string>> Disassembled;
+typedef vector<vector<pair<ADDRINT, ADDRINT>>> Readings;
+
 ofstream OatFout;
 
 /*
@@ -18,10 +21,10 @@ map<string, vector<string>> outline;
 string rName;
 
 // Saved info about readings from memory
-vector<vector<pair<ADDRINT, ADDRINT>>> readings;
+Readings readings;
 
 // listings of disassembled stack
-vector<map<ADDRINT, string>> disasms;
+Disassembled disasms;
 
 // Enrty contexts stack
 vector<CONTEXT> contexts;
@@ -71,7 +74,6 @@ BOOL Test_LoadList(string path)
 
 	routinesToTest.clear();
 	string line;
-	getline(fin, line);
 
 	bool routinesFlag = false;
 	bool rangeFlag = false;
@@ -140,6 +142,37 @@ BOOL Test_LoadList(string path)
 
 	fin.close();
 	return true;
+}
+
+VOID Test_Fini(INT32 exitCode, void*)
+{
+	if (!contexts.empty())
+	{
+		OatFout.open("outdata.txt", ios::app);
+		for (UINT32 i = 0; i < contexts.size(); i++)
+		{
+			OutputContext(&OatFout, &(contexts[i]));
+			if (i < disasms.size())
+			{
+				OatFout << "[DISASSEMBLED]" << endl;
+				
+				for (map<ADDRINT, string>::iterator iter = disasms[i].begin(); iter != disasms[i].end(); iter++)
+				{
+					OatFout << hexstr(iter->first) << "\t" << iter->second << endl;
+				}
+			}
+
+			if (i < readings.size())
+			{
+				OatFout << endl << "[READINGS]" << endl;
+				for (vector<pair<ADDRINT, ADDRINT>>::iterator iter = readings[i].begin(); iter != readings[i].end(); iter++)
+				{
+					OatFout << "At " << hexstr(iter->first) << " from " << hexstr(iter->second) << endl;
+				}
+			}
+		}
+		OatFout.close();
+	}
 }
 
 VOID OutputTestInfo(

@@ -30,6 +30,7 @@ int main(int argc, char *argv[])
 		{
 			RTN_AddInstrumentFunction(Test_Routine, 0);
 			INS_AddInstrumentFunction(Test_Instruction, 0);
+			PIN_AddFiniFunction(Test_Fini, 0);
 		}
 	}
 	if (KnobTrackerList.Value().compare("error"))

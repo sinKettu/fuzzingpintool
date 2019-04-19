@@ -23,6 +23,7 @@ VOID Outline_Fini(INT32 exitCode, void*);
 VOID Test_Routine(RTN rtn, void*);
 VOID Test_Instruction(INS ins, void*);
 BOOL Test_LoadList(string path);
+VOID Test_Fini(INT32 exitCode, void*);
 
 BOOL Tracker_LoadList(string path);
 VOID Tracker_Instruction(INS ins, void*);
