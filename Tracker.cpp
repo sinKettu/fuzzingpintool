@@ -9,12 +9,35 @@ typedef map<string, vector<string>> FoundStrings;
 ofstream TrackerFout;
 
 vector<UINT8> charsToTrack;
+vector<string> charsImgs;
+
 vector<UINT16> shortsToTrack;
 vector<UINT32> intsToTrack;
 vector<string> stringsToTrack;
 
 FoundChars foundChars;
 FoundStrings foundStrings;
+
+VOID ParseCharArgs(string line, string &imgName, UINT8 &val)
+{
+	UINT32 i = 0;
+	for (; i < line.length() && line[i] != ' '; i++) {}
+	if (i == line.length())
+	{
+		val = 0;
+		return;
+	}
+
+	imgName = line.substr(0, i);
+	UINT32 tmp = strtoul(line.c_str() + i, nullptr, 16);
+	if (tmp > 0xff)
+	{
+		val = 0;
+		return;
+	}
+
+	val = static_cast<UINT8>(tmp);
+}
 
 BOOL Tracker_LoadList(string path)
 {
@@ -69,11 +92,13 @@ BOOL Tracker_LoadList(string path)
 		{
 			if (line[0] != '#' && line.length())
 			{
-				UINT32 tmp = strtoul(line.c_str(), nullptr, 16);
-				if (tmp && tmp <= 0xff)
+				string imgName = "";
+				UINT8 val = 0;
+				ParseCharArgs(line, imgName, val);
+				if (val)
 				{
-					UINT8 c = static_cast<UINT8>(tmp);
-					charsToTrack.push_back(c);
+					charsToTrack.push_back(val);
+					charsImgs.push_back(imgName);
 				}
 			}
 		}
@@ -140,10 +165,11 @@ VOID Tracker_Fini(INT32 exitCode, void*)
 	TrackerFout.close();
 }
 
-VOID ReadCharHandle(ADDRINT rAddr, ADDRINT insAddr, string* rtnName, string* disasm)
+VOID ReadCharHandle(ADDRINT rAddr, ADDRINT insAddr, string* rtnName, string* disasm, string *imgName)
 {
 	UINT8 val = static_cast<UINT8>(DEREFERENCED(rAddr));
-	if (find(charsToTrack.begin(), charsToTrack.end(), val) != charsToTrack.end())
+	vector<UINT8>::iterator veci = find(charsToTrack.begin(), charsToTrack.end(), val);
+	if (veci != charsToTrack.end() && !charsImgs[veci - charsToTrack.begin()].compare(*imgName))
 	{
 		FoundChars::iterator iter = foundChars.find(val);
 		string tmpStr = *rtnName + " : " + hexstr(insAddr) + " : " + *disasm;
@@ -219,6 +245,14 @@ VOID Tracker_Instruction(INS ins, void*)
 		RTN rtn = INS_Rtn(ins);
 		if (RTN_Valid(rtn))
 		{
+			string *imgName = const_cast<string*>(
+				&IMG_Name(
+					SEC_Img(
+						RTN_Sec(rtn)
+					)
+				)
+				);
+
 			string *name = const_cast<string*>(&RTN_Name(rtn));
 			INS_InsertCall(
 				ins,
@@ -227,6 +261,7 @@ VOID Tracker_Instruction(INS ins, void*)
 				IARG_ADDRINT, INS_Address(ins),
 				IARG_PTR, name,
 				IARG_PTR, new string(INS_Disassemble(ins)),
+				IARG_PTR, imgName,
 				IARG_END
 			);
 		}
