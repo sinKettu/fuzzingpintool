@@ -13,7 +13,9 @@ vector<string> charsImgs;
 
 vector<UINT16> shortsToTrack;
 vector<UINT32> intsToTrack;
+
 vector<string> stringsToTrack;
+vector<string> stringImgs;
 
 FoundChars foundChars;
 FoundStrings foundStrings;
@@ -37,6 +39,36 @@ VOID ParseCharArgs(string line, string &imgName, UINT8 &val)
 	}
 
 	val = static_cast<UINT8>(tmp);
+}
+
+VOID ParseStringArgs(string line, string &imgName, string &str)
+{
+	UINT32 i = 0;
+	if (line[0] == '"')
+	{
+		i++;
+		for (; i < line.length() && line[i] != '"'; i++) {}
+		if (i == line.length())
+		{
+			str = "";
+			return;
+		}
+		imgName = line.substr(1, i);
+		str = line.substr(i + 2, line.length());
+	}
+	else
+	{
+		for (; i < line.length() && line[i] != ' '; i++) {}
+		if (i == line.length())
+		{
+			str = "";
+			return;
+		}
+
+		imgName = line.substr(0, i);
+		str = line.substr(i + 1, line.length());
+	}
+	
 }
 
 BOOL Tracker_LoadList(string path)
@@ -126,7 +158,15 @@ BOOL Tracker_LoadList(string path)
 		else if (st)
 		{
 			if (line[0] != '#' && line.length())
-				stringsToTrack.push_back(line);
+			{
+				string imgName = "", str = "";
+				ParseStringArgs(line, imgName, str);
+				if (str.length())
+				{
+					stringsToTrack.push_back(str);
+					stringImgs.push_back(imgName);
+				}
+			}
 		}
 
 		if (fin.eof())
@@ -187,54 +227,46 @@ VOID ReadCharHandle(ADDRINT rAddr, ADDRINT insAddr, string* rtnName, string* dis
 	}
 }
 
-// make it more beautiful
-VOID ReadStrHandle(ADDRINT rAddr, ADDRINT insAddr, string *name, string *disasm)
+// unknown problem!
+VOID ReadStrHandle(ADDRINT rAddr, ADDRINT insAddr, string *name, string *disasm, string *imgName)
 {
 	ADDRINT *base = reinterpret_cast<ADDRINT *>(DEREFERENCED(rAddr));
-	char *c = new char[4];
-	memset(c, 0, 4);
-	PIN_SafeCopy(c, base, 4);
-	if (*c == 0)
-		return;
-
-	UINT32 bb = *(reinterpret_cast<UINT32 *>(c));
-	delete[] c;
-	for (UINT32 i = 0; i < stringsToTrack.size(); i++)
+	char *c;
+	for (vector<string>::iterator str = stringsToTrack.begin(); str != stringsToTrack.end(); str++)
 	{
-		UINT32 sb = *(reinterpret_cast<UINT32 *>(const_cast<char *>(stringsToTrack.at(i).c_str())));
-		if (sb == bb)
+		c = new char[str->length()];
+		memset(c, 0, str->length());
+		PIN_SafeCopy(c, base, str->length());
+		if (*c == 0)
 		{
-			UINT32 strLength = stringsToTrack.at(i).length();
-			c = new char[strLength];
-			memset(c, 0, strLength);
-			PIN_SafeCopy(c, base, strLength);
-			if (strlen(c) == strLength && !stringsToTrack.at(i).compare(c))
-			{
-				delete[] c;
-				FoundStrings::iterator iter = foundStrings.find(stringsToTrack.at(i));
-				string tmpStr = *name + " : " + hexstr(insAddr) + " : " + *disasm;
-				if (iter == foundStrings.end())
-				{
-					vector<string> tmpVec;
-					tmpVec.push_back(tmpStr);
+			delete[] c;
+			return;
+		}
 
-					foundStrings.insert(make_pair(stringsToTrack.at(i), tmpVec));
-				}
-				else
-				{
-					iter->second.push_back(tmpStr);
-				}
+		if (strlen(c) == str->length() && 
+			!str->compare(c) && 
+			!stringImgs[str - stringsToTrack.begin()].compare(*imgName))
+		{
+			FoundStrings::iterator iter = foundStrings.find(*str);
+			string tmpStr = *name + " : " + hexstr(insAddr) + " : " + *disasm;
+			if (iter == foundStrings.end())
+			{
+				vector<string> tmpVec;
+				tmpVec.push_back(tmpStr);
+
+				foundStrings.insert(make_pair(*str, tmpVec));
 			}
 			else
 			{
-				delete[] c;
-				continue;
+				iter->second.push_back(tmpStr);
 			}
+
+			delete[] c;
+			return;
 		}
 		else
-		{
-			continue;
-		}
+			delete[] c;
+
 	}
 }
 
@@ -252,6 +284,9 @@ VOID Tracker_Instruction(INS ins, void*)
 					)
 				)
 				);
+
+			if (find(charsImgs.begin(), charsImgs.end(), *imgName) == charsImgs.end())
+				return;
 
 			string *name = const_cast<string*>(&RTN_Name(rtn));
 			INS_InsertCall(
@@ -271,6 +306,17 @@ VOID Tracker_Instruction(INS ins, void*)
 		RTN rtn = INS_Rtn(ins);
 		if (RTN_Valid(rtn))
 		{
+			string *imgName = const_cast<string*>(
+				&IMG_Name(
+					SEC_Img(
+						RTN_Sec(rtn)
+					)
+				)
+				);
+
+			if (find(stringImgs.begin(), stringImgs.end(), *imgName) == stringImgs.end())
+				return;
+
 			string *name = const_cast<string*>(&RTN_Name(rtn));
 			INS_InsertCall(
 				ins,
@@ -279,6 +325,7 @@ VOID Tracker_Instruction(INS ins, void*)
 				IARG_ADDRINT, INS_Address(ins),
 				IARG_PTR, name,
 				IARG_PTR, new string(INS_Disassemble(ins)),
+				IARG_PTR, imgName,
 				IARG_END
 			);
 		}

@@ -242,6 +242,7 @@ VOID InsHandler(ADDRINT addr, string *dasm)
 	disasms.back().insert(make_pair(addr, *dasm));
 }
 
+// Не всегда посещается head!
 VOID Test_Routine(RTN rtn, void*)
 {
 	string *rtnName = const_cast<string *>(&RTN_Name(rtn));
@@ -251,6 +252,8 @@ VOID Test_Routine(RTN rtn, void*)
 
 		INS head = RTN_InsHead(rtn);
 		INS tail = RTN_InsTail(rtn);
+		ADDRINT a = INS_Address(head);
+		ADDRINT b = INS_Address(tail);
 
 		INS_InsertCall(
 			head,
