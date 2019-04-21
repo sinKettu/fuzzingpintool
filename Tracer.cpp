@@ -18,4 +18,5 @@ BOOL Tracer_LoadList(string path)
 			imagesList.push_back(line);
 		}
 	}
+	fin.close();
 }
