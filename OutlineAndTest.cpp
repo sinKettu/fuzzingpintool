@@ -4,6 +4,7 @@ using namespace std;
 
 typedef vector<map<ADDRINT, string>> Disassembled;
 typedef vector<vector<pair<ADDRINT, ADDRINT>>> Readings;
+typedef map<string, vector<ADDRINT>> BblOutline;
 
 ofstream OatFout;
 
@@ -12,6 +13,8 @@ ofstream OatFout;
  */
 
 map<string, vector<string>> outline;
+vector<string> images;
+vector<vector<ADDRINT>> bbls;
 
 /*
  * Used in Test
@@ -49,16 +52,74 @@ VOID Outline_Image(IMG img, void*)
 VOID Outline_Fini(INT32 exitCode, void*)
 {
 	OatFout.open("outdata.txt");
-	for (map<string, vector<string>>::iterator image = outline.begin(); image != outline.end(); image++)
-	{
-		OatFout << image->first << endl;
-		for (UINT32 i = 0; i < image->second.size(); i++)
+	if (!outline.empty())
+		for (map<string, vector<string>>::iterator image = outline.begin(); image != outline.end(); image++)
 		{
-			OatFout << "\t" << image->second.at(i) << endl;
+			OatFout << image->first << endl;
+			for (UINT32 i = 0; i < image->second.size(); i++)
+			{
+				OatFout << "\t" << image->second.at(i) << endl;
+			}
+			image->second.clear();
 		}
-		image->second.clear();
-	}
+
+	if (!images.empty())
+		for (UINT32 i = 0; i < images.size(); i++)
+		{
+			OatFout << images.at(i) << endl;
+			if (!bbls.at(i).empty())
+			{
+				for (UINT32 j = 0; j < bbls.at(i).size(); j++)
+				{
+					OatFout << "\t" << hexstr(bbls.at(i).at(j)) << endl;
+				}
+				bbls.at(i).clear();
+			}
+		}
 	OatFout.close();
+}
+
+VOID OutlineBbl(ADDRINT head, ADDRINT tail, UINT32 index)
+{
+	if (index < bbls.size())
+		bbls.at(index).push_back(head);
+}
+
+VOID Outline_Trace(TRACE trc, void*)
+{
+	RTN rtn = TRACE_Rtn(trc);
+	if (!RTN_Valid(rtn))
+		return;
+	IMG img = SEC_Img(RTN_Sec(rtn));
+	if (!IMG_Valid(img))
+		return;
+	//string *rn = const_cast<string *>(&RTN_Name(rtn));
+	string *in = const_cast<string *>(&IMG_Name(img));
+	vector<string>::iterator iter = find(images.begin(), images.end(), *in);
+	UINT32 index = 0;
+	if (iter == images.end())
+	{
+		images.push_back(*in);
+		vector<ADDRINT> vec;
+		vec.clear();
+		bbls.push_back(vec);
+		index = images.size() - 1;
+	}
+	else
+	{
+		index = iter - images.begin();
+	}
+
+	for (BBL bbl = TRACE_BblHead(trc); BBL_Valid(bbl); bbl = BBL_Next(bbl))
+	{
+		BBL_InsertCall(
+			bbl,
+			IPOINT_BEFORE, (AFUNPTR)OutlineBbl,
+			IARG_ADDRINT, INS_Address(BBL_InsHead(bbl)),
+			IARG_UINT32, index,
+			IARG_END
+		);
+	}
 }
 
 vector<string> routinesToTest;

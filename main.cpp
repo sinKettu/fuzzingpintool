@@ -21,10 +21,10 @@ int main(int argc, char *argv[])
 	PIN_SetSyntaxIntel();
 	if (KnobOutline.Value())
 	{
-		IMG_AddInstrumentFunction(Outline_Image, 0);
+		TRACE_AddInstrumentFunction(Outline_Trace, 0);
 		PIN_AddFiniFunction(Outline_Fini, 0);
 	}
-	if (KnobTestList.Value().compare("error"))
+	else if (KnobTestList.Value().compare("error"))
 	{
 		if (Test_LoadList(KnobTestList.Value()))
 		{
@@ -33,7 +33,7 @@ int main(int argc, char *argv[])
 			PIN_AddFiniFunction(Test_Fini, 0);
 		}
 	}
-	if (KnobTrackerList.Value().compare("error"))
+	else if (KnobTrackerList.Value().compare("error"))
 	{
 		if (Tracker_LoadList(KnobTrackerList.Value()))
 		{
@@ -41,7 +41,7 @@ int main(int argc, char *argv[])
 			PIN_AddFiniFunction(Tracker_Fini, 0);
 		}
 	}
-	else
+	else 
 	{
 		IMG_AddInstrumentFunction(Fuzzer_Image, 0);
 		INS_AddInstrumentFunction(Fuzzer_Instrunction, 0);
