@@ -2,11 +2,15 @@
 #include "FuzzingPinTool.h"
 using namespace std;
 
+typedef vector<map<ADDRINT, UINT32>> BblCounter;
+
 ofstream TrcFout;
 vector<string> imagesList;
 vector<string> images;
 vector<vector<ADDRINT>> bbls;
 vector<vector<UINT32>> visits;
+
+BblCounter bblCounter;
 
 BOOL Tracer_LoadList(string path)
 {
@@ -29,10 +33,10 @@ BOOL Tracer_LoadList(string path)
 	return true;
 }
 
-VOID BblCounter(UINT32 imgIndex, UINT32 bblIndex)
+VOID RtnBblCounter(UINT32 imgIndex, ADDRINT addr)
 {
-	if (imgIndex < visits.size() && bblIndex < visits[imgIndex].size())
-		visits[imgIndex][bblIndex]++;
+	if (imgIndex < bblCounter.size())
+		bblCounter.at(imgIndex)[addr]++;
 }
 
 VOID Tracer_Trace(TRACE trc, void*)
@@ -51,36 +55,26 @@ VOID Tracer_Trace(TRACE trc, void*)
 	if (iter == images.end())
 	{
 		images.push_back(name);
-		
-		vector<ADDRINT> vec1;
-		vec1.clear();
-		bbls.push_back(vec1);
-
-		vector<UINT32> vec2;
-		vec2.clear();
-		visits.push_back(vec2);
+		map<ADDRINT, UINT32> tmp;
+		bblCounter.push_back(tmp);
 	}
 	else
 	{
 		index = iter - images.begin();
 	}
 
-	UINT32 count = bbls.at(index).empty() ? 0 : bbls.at(index).size();
 	for (BBL bbl = TRACE_BblHead(trc); BBL_Valid(bbl); bbl = BBL_Next(bbl))
 	{
 		ADDRINT addr = INS_Address(BBL_InsHead(bbl));
-		bbls.at(index).push_back(addr);
-		visits.at(index).push_back(0);
+		bblCounter.at(index).insert(make_pair(addr, 0));
 
 		BBL_InsertCall(
 			bbl,
-			IPOINT_BEFORE, (AFUNPTR)BblCounter,
+			IPOINT_BEFORE, (AFUNPTR)RtnBblCounter,
 			IARG_UINT32, index,
-			IARG_UINT32, count,
+			IARG_ADDRINT, addr,
 			IARG_END
 		);
-
-		count++;
 	}
 }
 
@@ -92,14 +86,12 @@ VOID Tracer_Fini(INT32 code, void*)
 		for (UINT32 i = 0; i < images.size(); i++)
 		{
 			TrcFout << images.at(i) << endl;
-			if (!bbls.empty())
+			for (map<ADDRINT, UINT32>::iterator iter = bblCounter.at(i).begin(); iter != bblCounter.at(i).end(); iter++)
 			{
-				for (UINT32 j = 0; j < bbls.at(i).size(); j++)
-				{
-					TrcFout << "\t" << hexstr(bbls.at(i).at(j)) << ": " << visits.at(i).at(j) << endl;
-				}
+				TrcFout << "\t" << hexstr(iter->first) << ": " << iter->second << endl;
 			}
 		}
+		TrcFout << endl;
 		TrcFout.close();
 	}
 }
