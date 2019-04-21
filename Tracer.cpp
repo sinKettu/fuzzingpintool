@@ -9,6 +9,9 @@ BOOL Tracer_LoadList(string path)
 {
 	ifstream fin;
 	fin.open(path.c_str());
+	if (!fin.is_open())
+		return false;
+
 	string line;
 	while (!fin.eof())
 	{
@@ -18,5 +21,7 @@ BOOL Tracer_LoadList(string path)
 			imagesList.push_back(line);
 		}
 	}
+
 	fin.close();
+	return true;
 }
