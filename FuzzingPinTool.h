@@ -18,7 +18,6 @@ VOID Fuzzer_Instrunction(INS ins, void*);
 VOID Fuzzer_Trace(TRACE trc, void*);
 
 VOID Outline_Image(IMG img, void*);
-VOID Outline_Trace(TRACE trc, void*);
 VOID Outline_Fini(INT32 exitCode, void*);
 
 VOID Test_Routine(RTN rtn, void*);

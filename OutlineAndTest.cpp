@@ -79,49 +79,6 @@ VOID Outline_Fini(INT32 exitCode, void*)
 	OatFout.close();
 }
 
-VOID OutlineBbl(ADDRINT head, ADDRINT tail, UINT32 index)
-{
-	if (index < bbls.size())
-		bbls.at(index).push_back(head);
-}
-
-VOID Outline_Trace(TRACE trc, void*)
-{
-	RTN rtn = TRACE_Rtn(trc);
-	if (!RTN_Valid(rtn))
-		return;
-	IMG img = SEC_Img(RTN_Sec(rtn));
-	if (!IMG_Valid(img))
-		return;
-	//string *rn = const_cast<string *>(&RTN_Name(rtn));
-	string *in = const_cast<string *>(&IMG_Name(img));
-	vector<string>::iterator iter = find(images.begin(), images.end(), *in);
-	UINT32 index = 0;
-	if (iter == images.end())
-	{
-		images.push_back(*in);
-		vector<ADDRINT> vec;
-		vec.clear();
-		bbls.push_back(vec);
-		index = images.size() - 1;
-	}
-	else
-	{
-		index = iter - images.begin();
-	}
-
-	for (BBL bbl = TRACE_BblHead(trc); BBL_Valid(bbl); bbl = BBL_Next(bbl))
-	{
-		BBL_InsertCall(
-			bbl,
-			IPOINT_BEFORE, (AFUNPTR)OutlineBbl,
-			IARG_ADDRINT, INS_Address(BBL_InsHead(bbl)),
-			IARG_UINT32, index,
-			IARG_END
-		);
-	}
-}
-
 vector<string> routinesToTest;
 map<ADDRINT, ADDRINT> rangesToTest;
 vector<ADDRINT> addressesToSaveContext;

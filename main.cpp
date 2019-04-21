@@ -21,7 +21,7 @@ int main(int argc, char *argv[])
 	PIN_SetSyntaxIntel();
 	if (KnobOutline.Value())
 	{
-		TRACE_AddInstrumentFunction(Outline_Trace, 0);
+		IMG_AddInstrumentFunction(Outline_Image, 0);
 		PIN_AddFiniFunction(Outline_Fini, 0);
 	}
 	else if (KnobTestList.Value().compare("error"))
