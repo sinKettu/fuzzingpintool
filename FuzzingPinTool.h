@@ -30,6 +30,8 @@ BOOL Tracker_LoadList(string path);
 VOID Tracker_Instruction(INS ins, void*);
 VOID Tracker_Fini(INT32 exitCode, void*);
 
+BOOL Tracer_LoadList(string path);
+
 // Common
 
 VOID OutputContext(ofstream *fout, CONTEXT *ctxt);

@@ -262,6 +262,7 @@
     <ClCompile Include="Fuzzer.cpp" />
     <ClCompile Include="main.cpp" />
     <ClCompile Include="OutlineAndTest.cpp" />
+    <ClCompile Include="Tracer.cpp" />
     <ClCompile Include="Tracker.cpp" />
   </ItemGroup>
   <ItemGroup>
