@@ -161,7 +161,7 @@ BOOL Tracker_LoadList(string path)
 			{
 				string imgName = "", str = "";
 				ParseStringArgs(line, imgName, str);
-				if (str.length())
+				if (str.length() && str.length() < 2048)
 				{
 					stringsToTrack.push_back(str);
 					stringImgs.push_back(imgName);
@@ -227,7 +227,6 @@ VOID ReadCharHandle(ADDRINT rAddr, ADDRINT insAddr, string* rtnName, string* dis
 	}
 }
 
-// unknown problem!
 VOID ReadStrHandle(ADDRINT rAddr, ADDRINT insAddr, string *name, string *disasm, string *imgName)
 {
 	ADDRINT rrAddr = 0;
