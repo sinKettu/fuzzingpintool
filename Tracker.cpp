@@ -230,12 +230,16 @@ VOID ReadCharHandle(ADDRINT rAddr, ADDRINT insAddr, string* rtnName, string* dis
 // unknown problem!
 VOID ReadStrHandle(ADDRINT rAddr, ADDRINT insAddr, string *name, string *disasm, string *imgName)
 {
-	ADDRINT *base = reinterpret_cast<ADDRINT *>(DEREFERENCED(rAddr));
-	char *c;
+	ADDRINT rrAddr = 0;
+	PIN_SafeCopy(&rrAddr, reinterpret_cast<ADDRINT*>(rAddr), 4);
+	if (!rrAddr)
+		return;
+
+	ADDRINT *base = reinterpret_cast<ADDRINT *>(rrAddr);
+	char *c = new char[2048];
 	for (vector<string>::iterator str = stringsToTrack.begin(); str != stringsToTrack.end(); str++)
 	{
-		c = new char[str->length()];
-		memset(c, 0, str->length());
+		memset(c, 0, 2048);
 		PIN_SafeCopy(c, base, str->length());
 		if (*c == 0)
 		{
@@ -249,6 +253,7 @@ VOID ReadStrHandle(ADDRINT rAddr, ADDRINT insAddr, string *name, string *disasm,
 		{
 			FoundStrings::iterator iter = foundStrings.find(*str);
 			string tmpStr = *name + " : " + hexstr(insAddr) + " : " + *disasm;
+
 			if (iter == foundStrings.end())
 			{
 				vector<string> tmpVec;
@@ -264,10 +269,9 @@ VOID ReadStrHandle(ADDRINT rAddr, ADDRINT insAddr, string *name, string *disasm,
 			delete[] c;
 			return;
 		}
-		else
-			delete[] c;
 
 	}
+	delete[] c;
 }
 
 VOID Tracker_Instruction(INS ins, void*)
@@ -301,7 +305,7 @@ VOID Tracker_Instruction(INS ins, void*)
 			);
 		}
 	}
-	if (!stringsToTrack.empty() && INS_IsMemoryRead(ins))
+	if (!stringsToTrack.empty() && INS_IsMemoryRead(ins) && INS_MemoryReadSize(ins) == 4)
 	{
 		RTN rtn = INS_Rtn(ins);
 		if (RTN_Valid(rtn))
