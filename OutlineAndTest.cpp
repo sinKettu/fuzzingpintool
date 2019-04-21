@@ -423,3 +423,48 @@ VOID Test_Instruction(INS ins, void*)
 	}
 	
 }
+
+VOID Test_Routine2(RTN rtn, void*)
+{
+	const string name = RTN_Name(rtn);
+	if (find(routinesToTest.begin(), routinesToTest.end(), name) == routinesToTest.end() || !RTN_Valid(rtn))
+		return;
+
+	RTN_Open(rtn);
+
+	vector<string> disassembled;
+	//INS head = RTN_InsHead(rtn);
+	INS tail = RTN_InsTail(rtn);
+	INS ins = RTN_InsHead(rtn);
+	while (true)
+	{
+		if (!INS_Valid(ins))
+		{
+			ins = INS_Next(ins);
+			continue;
+		}
+
+		string tmp;
+		tmp = hexstr(INS_Address(ins)) + "\t" + INS_Disassemble(ins);
+		disassembled.push_back(tmp);
+
+		if (ins == tail)
+			break;
+
+		ins = INS_Next(ins);
+	}
+	/*for (INS ins = RTN_InsHead(rtn); INS_Valid(ins); ins = INS_Next(ins))
+	{
+		string tmp;
+		tmp = hexstr(INS_Address(ins)) + "\t" + INS_Disassemble(ins);
+		disassembled.push_back(tmp);
+	}*/
+
+	RTN_Close(rtn);
+
+	OatFout.open("outdata.txt", ios::app);
+	OatFout << endl << "[DISASSEMBLED] " << name << endl;
+	for (UINT32 i = 0; i < disassembled.size(); i++)
+		OatFout << disassembled.at(i) << endl;
+	OatFout.close();
+}

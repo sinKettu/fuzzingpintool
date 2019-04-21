@@ -28,7 +28,7 @@ int main(int argc, char *argv[])
 	{
 		if (Test_LoadList(KnobTestList.Value()))
 		{
-			RTN_AddInstrumentFunction(Test_Routine, 0);
+			RTN_AddInstrumentFunction(Test_Routine2, 0);
 			INS_AddInstrumentFunction(Test_Instruction, 0);
 			PIN_AddFiniFunction(Test_Fini, 0);
 		}
