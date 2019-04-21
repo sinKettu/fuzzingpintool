@@ -13,8 +13,6 @@ ofstream OatFout;
  */
 
 map<string, vector<string>> outline;
-vector<string> images;
-vector<vector<ADDRINT>> bbls;
 
 /*
  * Used in Test
@@ -61,20 +59,6 @@ VOID Outline_Fini(INT32 exitCode, void*)
 				OatFout << "\t" << image->second.at(i) << endl;
 			}
 			image->second.clear();
-		}
-
-	if (!images.empty())
-		for (UINT32 i = 0; i < images.size(); i++)
-		{
-			OatFout << images.at(i) << endl;
-			if (!bbls.at(i).empty())
-			{
-				for (UINT32 j = 0; j < bbls.at(i).size(); j++)
-				{
-					OatFout << "\t" << hexstr(bbls.at(i).at(j)) << endl;
-				}
-				bbls.at(i).clear();
-			}
 		}
 	OatFout.close();
 }

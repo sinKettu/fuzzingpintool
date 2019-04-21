@@ -31,6 +31,8 @@ VOID Tracker_Instruction(INS ins, void*);
 VOID Tracker_Fini(INT32 exitCode, void*);
 
 BOOL Tracer_LoadList(string path);
+VOID Tracer_Trace(TRACE trc, void*);
+VOID Tracer_Fini(INT32 code, void*);
 
 // Common
 

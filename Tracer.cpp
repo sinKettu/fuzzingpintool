@@ -31,7 +31,8 @@ BOOL Tracer_LoadList(string path)
 
 VOID BblCounter(UINT32 imgIndex, UINT32 bblIndex)
 {
-	visits.at(imgIndex).at(bblIndex)++;
+	if (imgIndex < visits.size() && bblIndex < visits[imgIndex].size())
+		visits[imgIndex][bblIndex]++;
 }
 
 VOID Tracer_Trace(TRACE trc, void*)
@@ -64,7 +65,7 @@ VOID Tracer_Trace(TRACE trc, void*)
 		index = iter - images.begin();
 	}
 
-	UINT32 count = bbls.empty() ? 0 : bbls.size();
+	UINT32 count = bbls.at(index).empty() ? 0 : bbls.at(index).size();
 	for (BBL bbl = TRACE_BblHead(trc); BBL_Valid(bbl); bbl = BBL_Next(bbl))
 	{
 		ADDRINT addr = INS_Address(BBL_InsHead(bbl));

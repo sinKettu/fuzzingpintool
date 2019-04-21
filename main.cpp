@@ -46,7 +46,8 @@ int main(int argc, char *argv[])
 	{
 		if (Tracer_LoadList(KnobTracerList.Value()))
 		{
-			// put your code here :)
+			TRACE_AddInstrumentFunction(Tracer_Trace, 0);
+			PIN_AddFiniFunction(Tracer_Fini, 0);
 		}
 	}
 	else 
