@@ -4,12 +4,16 @@ using namespace std;
 
 typedef vector<map<ADDRINT, UINT32>> BblCounter;
 
+/* Globals */
 ofstream TrcFout;
-vector<string> imagesList;
-vector<string> images;
-vector<vector<ADDRINT>> bbls;
-vector<vector<UINT32>> visits;
 
+// Images to get trace
+vector<string> imagesList;
+
+// Visited images
+vector<string> images;
+
+// Bbl visits counter (connected with images)
 BblCounter bblCounter;
 
 BOOL Tracer_LoadList(string path)
