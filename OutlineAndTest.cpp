@@ -81,38 +81,34 @@ BOOL Test_LoadList(string path)
 	bool rangeFlag = false;
 	bool contextFlag = false;
 
+	UINT8 flags = 0;
+
 	while (true)
 	{
 		getline(fin, line);
 
 		if (!line.compare("[ROUTINES]"))
 		{
-			routinesFlag = true;
-			rangeFlag = false;
-			contextFlag = false;
+			flags = 0x01;
 			getline(fin, line);
 		}
 		else if (!line.compare("[RANGE]"))
 		{
-			routinesFlag = false;
-			rangeFlag = true;
-			contextFlag = false;
+			flags = 0x02;
 			getline(fin, line);
 		}
 		else if (!line.compare("[CONTEXT]"))
 		{
-			routinesFlag = false;
-			rangeFlag = false;
-			contextFlag = true;
+			flags = 0x03;
 			getline(fin, line);
 		}
 
-		if (routinesFlag)
+		if (flags == 0x01)
 		{
 			if (line[0] != '#' && line.length())
 				routinesToTest.push_back(line);
 		}
-		else if (rangeFlag)
+		else if (flags == 0x02)
 		{
 			if (line[0] != '#' && line.length())
 			{
@@ -128,7 +124,7 @@ BOOL Test_LoadList(string path)
 				
 			}
 		}
-		else if (contextFlag)
+		else if (flags == 0x03)
 		{
 			if (line[0] != '#' && line.length())
 			{
