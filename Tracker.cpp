@@ -254,6 +254,7 @@ VOID ReadStrHandle(ADDRINT rAddr, ADDRINT insAddr, string *name, string *disasm,
 		if (*c == 0)
 		{
 			delete[] c;
+			delete disasm;
 			return;
 		}
 
@@ -277,12 +278,14 @@ VOID ReadStrHandle(ADDRINT rAddr, ADDRINT insAddr, string *name, string *disasm,
 			}
 
 			delete[] c;
+			delete disasm;
 			return;
 		}
 
 	}
 
 	delete[] c;
+	delete disasm;
 }
 
 VOID Tracker_Instruction(INS ins, void*)
