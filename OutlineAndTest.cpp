@@ -54,6 +54,15 @@ map<ADDRINT, ADDRINT> rangesToTest;
 // List of addresses which contexts is needed to be saved
 vector<ADDRINT> addressesToSaveContext;
 
+// List disassembled instructions in given ranges
+vector<string> rangeDisasms;
+
+// List of memory readings in given ranges
+vector<pair<ADDRINT, ADDRINT>> rangeReadings;
+
+// Range first visit context
+CONTEXT rangeHeadCtxt;
+
 /* R O U T I N E S */
 
 VOID Outline_Image(IMG img, void*)
@@ -98,10 +107,6 @@ BOOL Test_LoadList(string path)
 
 	routinesToTest.clear();
 	string line;
-
-	bool routinesFlag = false;
-	bool rangeFlag = false;
-	bool contextFlag = false;
 
 	UINT8 flags = 0;
 
@@ -162,37 +167,6 @@ BOOL Test_LoadList(string path)
 
 	fin.close();
 	return true;
-}
-
-VOID Test_Fini(INT32 exitCode, void*)
-{
-	if (!contexts.empty())
-	{
-		OatFout.open("outdata.txt", ios::app);
-		for (UINT32 i = 0; i < contexts.size(); i++)
-		{
-			OutputContext(&OatFout, &(contexts[i]));
-			if (i < disasms.size())
-			{
-				OatFout << "[DISASSEMBLED]" << endl;
-				
-				for (map<ADDRINT, string>::iterator iter = disasms[i].begin(); iter != disasms[i].end(); iter++)
-				{
-					OatFout << hexstr(iter->first) << "\t" << iter->second << endl;
-				}
-			}
-
-			if (i < readings.size())
-			{
-				OatFout << endl << "[READINGS]" << endl;
-				for (vector<pair<ADDRINT, ADDRINT>>::iterator iter = readings[i].begin(); iter != readings[i].end(); iter++)
-				{
-					OatFout << "At " << hexstr(iter->first) << " from " << hexstr(iter->second) << endl;
-				}
-			}
-		}
-		OatFout.close();
-	}
 }
 
 VOID OutputTestInfo(
@@ -262,6 +236,79 @@ VOID InsHandler(ADDRINT addr, string *dasm)
 	disasms.back().insert(make_pair(addr, *dasm));
 }
 
+struct InstructionInfo
+{
+	UINT32 Address;
+	string Disassembled;
+	UINT32 VisitsCount;
+};
+
+map<UINT32, vector<InstructionInfo>> testedRtns;
+map<UINT32, string> rtnsRefs;
+
+VOID Test_Fini(INT32 exitCode, void*)
+{
+	OatFout.open("outdata.txt", ios::app);
+	for (map<UINT32, vector<InstructionInfo>>::iterator iter = testedRtns.begin(); iter != testedRtns.end(); iter++)
+	{
+		OatFout << "[ROUTINE] " << rtnsRefs[iter->first] << endl;
+		OatFout << "[DISASSEMBLED]\n";
+		for (UINT32 i = 0; i < iter->second.size(); i++)
+		{
+			OatFout << iter->second.at(i).Address << "\t" << iter->second.at(i).Disassembled << " [" << iter->second.at(i).VisitsCount << "]\n";
+		}
+		OatFout << endl;
+	}
+	OatFout.close();
+}
+
+VOID RtnInsHandler(UINT32 rtnID, UINT32 insID)
+{
+	testedRtns[rtnID].at(insID).VisitsCount++;
+}
+
+VOID Test_Routine2(RTN rtn, void*)
+{
+	if (!RTN_Valid(rtn))
+		return;
+	
+	string name = RTN_Name(rtn);
+	if (find(routinesToTest.begin(), routinesToTest.end(), name) == routinesToTest.end())
+		return;
+
+	RTN_Open(rtn);
+
+	UINT32 id = RTN_Id(rtn);
+	rtnsRefs.insert(make_pair(id, name));
+	if (testedRtns.find(id) != testedRtns.end())
+	{
+		UINT32 counter = 0;
+		vector<InstructionInfo> rtnInstructions;
+		for (INS ins = RTN_InsHead(rtn); INS_Valid(ins); ins = INS_Next(ins))
+		{
+			InstructionInfo current;
+			current.Address = INS_Address(ins);
+			current.Disassembled = INS_Disassemble(ins);
+			current.VisitsCount = 0;
+			rtnInstructions.push_back(current);
+
+			INS_InsertCall(
+				ins,
+				IPOINT_BEFORE, (AFUNPTR)RtnInsHandler,
+				IARG_UINT32, id,
+				IARG_UINT32, counter,
+				IARG_END
+			);
+
+			counter++;
+		}
+
+		testedRtns.insert(make_pair(id, rtnInstructions));
+	}
+
+	RTN_Close(rtn);
+}
+
 // Не всегда посещается head!
 VOID Test_Routine(RTN rtn, void*)
 {
@@ -317,10 +364,6 @@ VOID Test_Routine(RTN rtn, void*)
 	}
 
 }
-
-vector<string> rangeDisasms;
-vector<pair<ADDRINT, ADDRINT>> rangeReadings;
-CONTEXT rangeHeadCtxt;
 
 VOID ContextHandle(ADDRINT addr, CONTEXT *ctxt)
 {
@@ -442,49 +485,4 @@ VOID Test_Instruction(INS ins, void*)
 		}
 	}
 	
-}
-
-VOID Test_Routine2(RTN rtn, void*)
-{
-	const string name = RTN_Name(rtn);
-	if (find(routinesToTest.begin(), routinesToTest.end(), name) == routinesToTest.end() || !RTN_Valid(rtn))
-		return;
-
-	RTN_Open(rtn);
-
-	vector<string> disassembled;
-	//INS head = RTN_InsHead(rtn);
-	INS tail = RTN_InsTail(rtn);
-	INS ins = RTN_InsHead(rtn);
-	while (true)
-	{
-		if (!INS_Valid(ins))
-		{
-			ins = INS_Next(ins);
-			continue;
-		}
-
-		string tmp;
-		tmp = hexstr(INS_Address(ins)) + "\t" + INS_Disassemble(ins);
-		disassembled.push_back(tmp);
-
-		if (ins == tail)
-			break;
-
-		ins = INS_Next(ins);
-	}
-	/*for (INS ins = RTN_InsHead(rtn); INS_Valid(ins); ins = INS_Next(ins))
-	{
-		string tmp;
-		tmp = hexstr(INS_Address(ins)) + "\t" + INS_Disassemble(ins);
-		disassembled.push_back(tmp);
-	}*/
-
-	RTN_Close(rtn);
-
-	OatFout.open("outdata.txt", ios::app);
-	OatFout << endl << "[DISASSEMBLED] " << name << endl;
-	for (UINT32 i = 0; i < disassembled.size(); i++)
-		OatFout << disassembled.at(i) << endl;
-	OatFout.close();
 }
