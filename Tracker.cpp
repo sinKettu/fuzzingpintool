@@ -6,19 +6,33 @@ using namespace std;
 typedef map<UINT8, vector<string>> FoundChars;
 typedef map<string, vector<string>> FoundStrings;
 
+/* G L O B A L S */
+
 ofstream TrackerFout;
 
+// What chars in what images search
 vector<UINT8> charsToTrack;
 vector<string> charsImgs;
 
+// What shorts in what images search (not released)
 vector<UINT16> shortsToTrack;
-vector<UINT32> intsToTrack;
+vector<string> shortsImgs;
 
+// What integers in what images search (not released)
+vector<UINT32> intsToTrack;
+vector<string> intsImages;
+
+// What strings in what images search
 vector<string> stringsToTrack;
 vector<string> stringImgs;
 
+// What chars in what instructions found
 FoundChars foundChars;
+
+// What strings in what instructions found
 FoundStrings foundStrings;
+
+/* R O U T I N E S */
 
 VOID ParseCharArgs(string line, string &imgName, UINT8 &val)
 {
@@ -83,44 +97,34 @@ BOOL Tracker_LoadList(string path)
 	bool in = false;
 	bool st = false;
 
+	UINT8 flags = 0;
+
 	string line;
 	while (true)
 	{
 		getline(fin, line);
 		if (!line.compare("[1]"))
 		{
-			ch = true;
-			sh = false;
-			in = false;
-			st = false;
+			flags = 0x01;
 			getline(fin, line);
 		}
 		else if (!line.compare("[2]"))
 		{
-			ch = false;
-			sh = true;
-			in = false;
-			st = false;
+			flags = 0x02;
 			getline(fin, line);
 		}
 		else if (!line.compare("[4]"))
 		{
-			ch = false;
-			sh = false;
-			in = true;
-			st = false;
+			flags = 0x03;
 			getline(fin, line);
 		}
 		else if (!line.compare("[c]"))
 		{
-			ch = false;
-			sh = false;
-			in = false;
-			st = true;
+			flags = 0x04;
 			getline(fin, line);
 		}
 
-		if (ch)
+		if (flags == 0x01)
 		{
 			if (line[0] != '#' && line.length())
 			{
@@ -134,7 +138,7 @@ BOOL Tracker_LoadList(string path)
 				}
 			}
 		}
-		else if (sh)
+		else if (flags == 0x02)
 		{
 			if (line[0] != '#' && line.length())
 			{
@@ -146,7 +150,7 @@ BOOL Tracker_LoadList(string path)
 				}
 			}
 		}
-		else if (in)
+		else if (flags == 0x03)
 		{
 			if (line[0] != '#' && line.length())
 			{
@@ -155,7 +159,7 @@ BOOL Tracker_LoadList(string path)
 					intsToTrack.push_back(tmp);
 			}
 		}
-		else if (st)
+		else if (flags == 0x04)
 		{
 			if (line[0] != '#' && line.length())
 			{
