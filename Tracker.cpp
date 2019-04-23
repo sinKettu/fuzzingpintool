@@ -32,6 +32,9 @@ FoundChars foundChars;
 // What strings in what instructions found
 FoundStrings foundStrings;
 
+// Max string to search length
+UINT32 maxStrLength = 0;
+
 /* R O U T I N E S */
 
 VOID ParseCharArgs(string line, string &imgName, UINT8 &val)
@@ -169,6 +172,7 @@ BOOL Tracker_LoadList(string path)
 				{
 					stringsToTrack.push_back(str);
 					stringImgs.push_back(imgName);
+					maxStrLength = max(maxStrLength, str.length());
 				}
 			}
 		}
@@ -239,10 +243,10 @@ VOID ReadStrHandle(ADDRINT rAddr, ADDRINT insAddr, string *name, string *disasm,
 		return;
 
 	ADDRINT *base = reinterpret_cast<ADDRINT *>(rrAddr);
-	char *c = new char[2048];
+	char *c = new char[maxStrLength];
 	for (vector<string>::iterator str = stringsToTrack.begin(); str != stringsToTrack.end(); str++)
 	{
-		memset(c, 0, 2048);
+		memset(c, 0, maxStrLength);
 		PIN_SafeCopy(c, base, str->length());
 		if (*c == 0)
 		{
