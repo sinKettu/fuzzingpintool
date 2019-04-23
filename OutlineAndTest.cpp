@@ -84,7 +84,7 @@ VOID Outline_Image(IMG img, void*)
 
 VOID Outline_Fini(INT32 exitCode, void*)
 {
-	OatFout.open("outdata.txt");
+	OatFout.open("outdata.txt", ios::app);
 	if (!outline.empty())
 		for (map<string, vector<string>>::iterator image = outline.begin(); image != outline.end(); image++)
 		{
@@ -129,7 +129,7 @@ BOOL Test_LoadList(string path)
 			flags = 0x03;
 			getline(fin, line);
 		}
-
+		//
 		if (flags == 0x01)
 		{
 			if (line[0] != '#' && line.length())
@@ -255,7 +255,7 @@ VOID Test_Fini(INT32 exitCode, void*)
 		OatFout << "[DISASSEMBLED]\n";
 		for (UINT32 i = 0; i < iter->second.size(); i++)
 		{
-			OatFout << iter->second.at(i).Address << "\t" << iter->second.at(i).Disassembled << " [" << iter->second.at(i).VisitsCount << "]\n";
+			OatFout << hexstr(iter->second.at(i).Address) << "\t" << iter->second.at(i).Disassembled << " [" << iter->second.at(i).VisitsCount << "]\n";
 		}
 		OatFout << endl;
 	}
@@ -279,9 +279,9 @@ VOID Test_Routine2(RTN rtn, void*)
 	RTN_Open(rtn);
 
 	UINT32 id = RTN_Id(rtn);
-	rtnsRefs.insert(make_pair(id, name));
-	if (testedRtns.find(id) != testedRtns.end())
+	if (testedRtns.find(id) == testedRtns.end())
 	{
+		rtnsRefs.insert(make_pair(id, name));
 		UINT32 counter = 0;
 		vector<InstructionInfo> rtnInstructions;
 		for (INS ins = RTN_InsHead(rtn); INS_Valid(ins); ins = INS_Next(ins))

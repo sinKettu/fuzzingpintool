@@ -167,7 +167,7 @@ BOOL Tracker_LoadList(string path)
 				{
 					stringsToTrack.push_back(str);
 					stringImgs.push_back(imgName);
-					maxStrLength = max(maxStrLength, str.length());
+					maxStrLength = max(maxStrLength, str.length() + 1);
 				}
 			}
 		}
