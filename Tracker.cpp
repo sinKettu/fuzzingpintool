@@ -233,6 +233,9 @@ VOID ReadCharHandle(ADDRINT rAddr, ADDRINT insAddr, string* rtnName, string* dis
 			iter->second.push_back(tmpStr);
 		}
 	}
+
+	// ???
+	delete disasm;
 }
 
 VOID ReadStrHandle(ADDRINT rAddr, ADDRINT insAddr, string *name, string *disasm, string *imgName)
@@ -278,6 +281,7 @@ VOID ReadStrHandle(ADDRINT rAddr, ADDRINT insAddr, string *name, string *disasm,
 		}
 
 	}
+
 	delete[] c;
 }
 
@@ -334,9 +338,9 @@ VOID Tracker_Instruction(INS ins, void*)
 				IPOINT_BEFORE, (AFUNPTR)ReadStrHandle,
 				IARG_MEMORYREAD_EA,
 				IARG_ADDRINT, INS_Address(ins),
-				IARG_PTR, name,
-				IARG_PTR, new string(INS_Disassemble(ins)),
-				IARG_PTR, imgName,
+				IARG_PTR,	  name,
+				IARG_PTR,	  new string(INS_Disassemble(ins)),
+				IARG_PTR,	  imgName,
 				IARG_END
 			);
 		}
