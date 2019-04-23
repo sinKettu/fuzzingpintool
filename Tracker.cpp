@@ -95,11 +95,6 @@ BOOL Tracker_LoadList(string path)
 	if (!fin.is_open())
 		return false;
 
-	bool ch = false;
-	bool sh = false;
-	bool in = false;
-	bool st = false;
-
 	UINT8 flags = 0;
 
 	string line;
