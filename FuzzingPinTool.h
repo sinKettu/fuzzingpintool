@@ -21,7 +21,6 @@ VOID Outline_Image(IMG img, void*);
 VOID Outline_Fini(INT32 exitCode, void*);
 
 VOID Test_Routine(RTN rtn, void*);
-VOID Test_Routine2(RTN rtn, void*);
 VOID Test_Instruction(INS ins, void*);
 BOOL Test_LoadList(string path);
 VOID Test_Fini(INT32 exitCode, void*);
