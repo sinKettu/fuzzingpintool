@@ -5,15 +5,16 @@ using namespace std;
 typedef vector<map<ADDRINT, UINT32>> BblCounter;
 
 /* Globals */
+
 ofstream TrcFout;
 
 // Images to get trace
-vector<string> imagesList;
+vector<string> trcImages;
 
 // Visited images
 vector<string> images;
 
-// Bbl visits counter (connected with images)
+// Bbl visits counter (related to images)
 BblCounter bblCounter;
 
 BOOL Tracer_LoadList(string path)
@@ -29,7 +30,7 @@ BOOL Tracer_LoadList(string path)
 		getline(fin, line);
 		if (line.length() && line[0] != '#')
 		{
-			imagesList.push_back(line);
+			trcImages.push_back(line);
 		}
 	}
 
@@ -51,7 +52,7 @@ VOID Tracer_Trace(TRACE trc, void*)
 
 	IMG img = SEC_Img(RTN_Sec(rtn));
 	string name = IMG_Name(img);
-	if (find(imagesList.begin(), imagesList.end(), name) == imagesList.end())
+	if (find(trcImages.begin(), trcImages.end(), name) == trcImages.end())
 		return;
 
 	vector<string>::iterator iter = find(images.begin(), images.end(), name);
