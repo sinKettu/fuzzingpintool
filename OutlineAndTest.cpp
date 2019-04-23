@@ -1,3 +1,16 @@
+/*  
+	Outlines program (list of images with routines)
+	And testing any of them (also, addresses ranges 
+	and saving instructions contexts)
+*/
+
+/*
+	TODO: 
+		-	Routines tests without first (or any)
+			instructions
+		-	Ranges tests with(out) calls
+*/
+
 #pragma once
 #include "FuzzingPinTool.h"
 using namespace std;
@@ -7,6 +20,8 @@ typedef vector<vector<pair<ADDRINT, ADDRINT>>> Readings;
 typedef map<string, vector<ADDRINT>> BblOutline;
 
 ofstream OatFout;
+
+/* G L O B A L S */
 
 /*
  * Used in Outline
@@ -29,6 +44,17 @@ Disassembled disasms;
 
 // Enrty contexts stack
 vector<CONTEXT> contexts;
+
+// List of routines for testing in a case
+vector<string> routinesToTest;
+
+// List of addresses ranges [From; To] for testing in a case
+map<ADDRINT, ADDRINT> rangesToTest;
+
+// List of addresses which contexts is needed to be saved
+vector<ADDRINT> addressesToSaveContext;
+
+/* R O U T I N E S */
 
 VOID Outline_Image(IMG img, void*)
 {
@@ -62,10 +88,6 @@ VOID Outline_Fini(INT32 exitCode, void*)
 		}
 	OatFout.close();
 }
-
-vector<string> routinesToTest;
-map<ADDRINT, ADDRINT> rangesToTest;
-vector<ADDRINT> addressesToSaveContext;
 
 BOOL Test_LoadList(string path)
 {
