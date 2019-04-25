@@ -15,6 +15,8 @@
 #include "FuzzingPinTool.h"
 using namespace std;
 
+typedef map<ADDRINT, pair<INT32, UINT8>> ReadData;
+
 struct InstructionInfo
 {
 	UINT32 Address;
@@ -54,6 +56,8 @@ UINT32 rangesCounter = 0;
 // Traversed instructions
 vector<InstructionInfo> insInRanges;
 
+ReadData toRead;
+
 /* R O U T I N E S */
 
 VOID Outline_Image(IMG img, void*)
@@ -89,6 +93,69 @@ VOID Outline_Fini(INT32 exitCode, void*)
 	OatFout.close();
 }
 
+VOID ParseRead(string line, ADDRINT &insAddr, INT32 &readAddr, UINT8 &reg)
+{
+	UINT32 i = 0;
+	char *regsNames[] = { "eax", "ebx", "ecx", "edx", "esi", "edi", "esp", "ebp" };
+	for (; i < line.length() && line[i] != ' '; i++){}
+	if (i < line.length())
+	{
+		string tmp = line.substr(0, i);
+		insAddr = strtoul(tmp.c_str(), nullptr, 16);
+		if (insAddr == 0)
+			return;
+
+		i++;
+		tmp = line.substr(i, 3);
+		UINT32 j = 0;
+		for (; j < 8 && strcmp(regsNames[j], tmp.c_str()); j++){}
+		if (j < 8)
+		{
+			i += 3;
+			if (line[i] == '-')
+			{
+				i++;
+				reg = 1 << j;
+				tmp = line.substr(i, line.size());
+				readAddr = 0 - strtol(tmp.c_str(), nullptr, 16);
+				if (!readAddr)
+				{
+					insAddr = 0;
+					readAddr = 0;
+				}
+			}
+			else if (line[i] == '+')
+			{
+				i++;
+				reg = 1 << j;
+				tmp = line.substr(i, line.size());
+				readAddr = strtol(tmp.c_str(), nullptr, 16);
+				if (!readAddr)
+				{
+					insAddr = 0;
+					readAddr = 0;
+				}
+			}
+			else
+			{
+				reg = 0xff;
+				insAddr = 0;
+				readAddr = 0;
+			}
+		}
+		else
+		{
+			reg = false;
+			readAddr = static_cast<INT32>(strtoul(line.c_str() + i, nullptr, 16));
+			if (!readAddr)
+			{
+				insAddr = 0;
+				readAddr = 0;
+			}
+		}
+	}
+}
+
 BOOL Test_LoadList(string path)
 {
 	ifstream fin;
@@ -113,6 +180,11 @@ BOOL Test_LoadList(string path)
 		else if (!line.compare("[RANGE]"))
 		{
 			flags = 0x02;
+			getline(fin, line);
+		}
+		else if (!line.compare("[READ]"))
+		{
+			flags = 0x03;
 			getline(fin, line);
 		}
 		/*else if (!line.compare("[CONTEXT]"))
@@ -140,6 +212,17 @@ BOOL Test_LoadList(string path)
 						rangesToTest.insert(make_pair(first, second));
 				}
 				
+			}
+		}
+		else if (flags == 0x03)
+		{
+			ADDRINT insAddr = 0; 
+			INT32 readAddr = 0;
+			UINT8 reg = false;
+			ParseRead(line, insAddr, readAddr, reg);
+			if (readAddr && insAddr)
+			{
+				toRead.insert(make_pair(insAddr, make_pair(readAddr, reg)));
 			}
 		}
 		/*else if (flags == 0x03)
