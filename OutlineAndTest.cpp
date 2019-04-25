@@ -187,11 +187,6 @@ BOOL Test_LoadList(string path)
 			flags = 0x03;
 			getline(fin, line);
 		}
-		/*else if (!line.compare("[CONTEXT]"))
-		{
-			flags = 0x03;
-			getline(fin, line);
-		}*/
 		//
 		if (flags == 0x01)
 		{
@@ -225,15 +220,6 @@ BOOL Test_LoadList(string path)
 				toRead.insert(make_pair(insAddr, make_pair(readAddr, reg)));
 			}
 		}
-		/*else if (flags == 0x03)
-		{
-			if (line[0] != '#' && line.length())
-			{
-				UINT32 addr = strtoul(line.c_str(), nullptr, 16);
-				if (addr)
-					addressesToSaveContext.push_back(addr);
-			}
-		}*/
 		
 		if (fin.eof())
 			break;
@@ -328,6 +314,8 @@ VOID Test_Instruction(INS ins, void*)
 {
 	ADDRINT addr = INS_Address(ins);
 
+	// Range part
+
 	if (rangesCounter)
 	{
 		InstructionInfo insInfo;
@@ -351,5 +339,28 @@ VOID Test_Instruction(INS ins, void*)
 
 		if (rangesCounter && iter->second == addr)
 			rangesCounter--;
+	}
+
+	// Read part
+
+	ReadData::iterator iter = toRead.find(addr);
+	if (iter != toRead.end())
+	{
+		UINT8 reg = iter->second.second;
+		INT32 readAddr = iter->second.first;
+		if (reg == 0xff)
+		{
+			INS_InsertCall(
+				ins,
+				IPOINT_BEFORE, (AFUNPTR)ReadFromMemoryHandler,
+				IARG_ADDRINT, addr,
+				IARG_ADDRINT, (ADDRINT)readAddr,
+				IARG_END
+			);
+		}
+		else
+		{
+
+		}
 	}
 }
