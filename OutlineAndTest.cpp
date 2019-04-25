@@ -93,6 +93,7 @@ VOID Outline_Fini(INT32 exitCode, void*)
 	OatFout.close();
 }
 
+// Случай когда не вычитается и не прибавляется ничего к регистру
 VOID ParseRead(string line, ADDRINT &insAddr, INT32 &readAddr, UINT8 &reg)
 {
 	UINT32 i = 0;
@@ -352,7 +353,7 @@ VOID Test_Instruction(INS ins, void*)
 		{
 			INS_InsertCall(
 				ins,
-				IPOINT_BEFORE, (AFUNPTR)ReadFromMemoryHandler,
+				IPOINT_BEFORE, (AFUNPTR)FromMemoryHandler,
 				IARG_ADDRINT, addr,
 				IARG_ADDRINT, (ADDRINT)readAddr,
 				IARG_END
