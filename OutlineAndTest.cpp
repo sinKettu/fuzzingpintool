@@ -8,7 +8,7 @@
 	TODO: 
 		-	Routines tests without first (or any)	(X)
 			instructions							(X)
-		-	Ranges tests with(out) calls
+		-	Ranges tests							(X)
 */
 
 #pragma once
@@ -48,17 +48,11 @@ map<UINT32, string> rtnsRefs;
 // List of addresses ranges [From; To] for testing in a case
 map<ADDRINT, ADDRINT> rangesToTest;
 
-// List of addresses which contexts is needed to be saved
-vector<ADDRINT> addressesToSaveContext;
+// Count of ranges in progress
+UINT32 rangesCounter = 0;
 
-// List disassembled instructions in given ranges
-vector<string> rangeDisasms;
-
-// List of memory readings in given ranges
-vector<pair<ADDRINT, ADDRINT>> rangeReadings;
-
-// Range first visit context
-CONTEXT rangeHeadCtxt;
+// Traversed instructions
+vector<InstructionInfo> insInRanges;
 
 /* R O U T I N E S */
 
@@ -121,11 +115,11 @@ BOOL Test_LoadList(string path)
 			flags = 0x02;
 			getline(fin, line);
 		}
-		else if (!line.compare("[CONTEXT]"))
+		/*else if (!line.compare("[CONTEXT]"))
 		{
 			flags = 0x03;
 			getline(fin, line);
-		}
+		}*/
 		//
 		if (flags == 0x01)
 		{
@@ -148,7 +142,7 @@ BOOL Test_LoadList(string path)
 				
 			}
 		}
-		else if (flags == 0x03)
+		/*else if (flags == 0x03)
 		{
 			if (line[0] != '#' && line.length())
 			{
@@ -156,7 +150,7 @@ BOOL Test_LoadList(string path)
 				if (addr)
 					addressesToSaveContext.push_back(addr);
 			}
-		}
+		}*/
 		
 		if (fin.eof())
 			break;
@@ -176,6 +170,19 @@ VOID Test_Fini(INT32 exitCode, void*)
 		for (UINT32 i = 0; i < iter->second.size(); i++)
 		{
 			OatFout << hexstr(iter->second.at(i).Address) << "\t" << iter->second.at(i).Disassembled << " [" << iter->second.at(i).VisitsCount << "]\n";
+		}
+		OatFout << endl;
+	}
+	for (map<ADDRINT, ADDRINT>::iterator iter = rangesToTest.begin(); iter != rangesToTest.end(); iter++)
+	{
+		OatFout << "[RANGE] " << hexstr(iter->first) << ": " << hexstr(iter->second) << endl;
+		OatFout << "[DISASSEMBLED]" << endl;
+		for (UINT32 i = 0; i < insInRanges.size(); i++)
+		{
+			if (insInRanges.at(i).Address >= iter->first && insInRanges.at(i).Address <= iter->second)
+			{
+				OatFout << hexstr(insInRanges.at(i).Address) << "\t" << insInRanges.at(i).Disassembled << "\t[" << insInRanges.at(i).VisitsCount << "]\n";
+			}
 		}
 		OatFout << endl;
 	}
@@ -229,124 +236,37 @@ VOID Test_Routine(RTN rtn, void*)
 	RTN_Close(rtn);
 }
 
-VOID ContextHandle(ADDRINT addr, CONTEXT *ctxt)
+VOID RangeInsHandler(UINT32 insID)
 {
-	OatFout.open("outdata.txt", ios::app);
-	OatFout << "\n[CONTEXT] " << hexstr(addr) << endl;
-	OutputContext(&OatFout, ctxt);
-	OatFout.close();
+	insInRanges[insID].VisitsCount++;
 }
-
-VOID RangeHeadHandle(ADDRINT addr, string *dasm, CONTEXT *ctxt)
-{
-	rangeDisasms.push_back(hexstr(addr) + "\t" + *dasm);
-	PIN_SaveContext(ctxt, &rangeHeadCtxt);
-}
-
-VOID RangeReadInsHandle(ADDRINT addr, string *dasm, ADDRINT readAddr)
-{
-	rangeDisasms.push_back(hexstr(addr) + "\t" + *dasm);
-	rangeReadings.push_back(make_pair(addr, readAddr));
-}
-
-VOID RangeInsHandle(ADDRINT addr, string *dasm)
-{
-	rangeDisasms.push_back(hexstr(addr) + "\t" + *dasm);
-}
-
-VOID RangeTailHandle(ADDRINT head, ADDRINT tail)
-{
-	OatFout.open("outdata.txt", ios::app);
-	OatFout << endl << "[RANGE] " << hexstr(head) << " " << hexstr(tail) << endl;
-	OatFout << "[DISASSEMBLED]" << endl;
-	for (UINT32 i = 0; i < rangeDisasms.size(); i++)
-	{
-		OatFout << "\t" << rangeDisasms.at(i) << endl;
-	}
-	OatFout << endl << "[ENTRY CONTEXT]" << endl;
-	OutputContext(&OatFout, &rangeHeadCtxt);
-	OatFout << endl << "[READINGS]" << endl;
-	for (UINT32 i = 0; i < rangeReadings.size(); i++)
-	{
-		OatFout << "At " << hexstr(rangeReadings.at(i).first) << " from " << hexstr(rangeReadings.at(i).second) << endl;
-	}
-	OatFout.close();
-
-	rangeDisasms.clear();
-	rangeReadings.clear();
-}
-
-map<ADDRINT, ADDRINT>::iterator curRange;
-BOOL rangeInProgress = false;
 
 VOID Test_Instruction(INS ins, void*)
 {
-	if (!rangesToTest.size() && !addressesToSaveContext.size())
-		return;
+	ADDRINT addr = INS_Address(ins);
 
-	UINT32 addr = INS_Address(ins);
-	if (find(addressesToSaveContext.begin(), addressesToSaveContext.end(), addr) != addressesToSaveContext.end())
+	if (rangesCounter)
 	{
+		InstructionInfo insInfo;
+		insInfo.Address = addr;
+		insInfo.Disassembled = INS_Disassemble(ins);
+		insInfo.VisitsCount = 0;
+		insInRanges.push_back(insInfo);
+
 		INS_InsertCall(
 			ins,
-			IPOINT_BEFORE, (AFUNPTR)ContextHandle,
-			IARG_ADDRINT, addr,
-			IARG_CONTEXT,
+			IPOINT_BEFORE, (AFUNPTR)RangeInsHandler,
+			IARG_UINT32, insInRanges.size() - 1,
 			IARG_END
 		);
 	}
 
-	if (rangeInProgress)
+	for (map<ADDRINT, ADDRINT>::iterator iter = rangesToTest.begin(); iter != rangesToTest.end(); iter++)
 	{
-		if (INS_IsMemoryRead(ins))
-		{
-			INS_InsertCall(
-				ins,
-				IPOINT_BEFORE, (AFUNPTR)RangeReadInsHandle,
-				IARG_ADDRINT, addr,
-				IARG_PTR, new string(INS_Disassemble(ins)),
-				IARG_MEMORYREAD_EA,
-				IARG_END
-			);
-		}
-		else
-		{
-			INS_InsertCall(
-				ins,
-				IPOINT_BEFORE, (AFUNPTR)RangeInsHandle,
-				IARG_ADDRINT, addr,
-				IARG_PTR, new string(INS_Disassemble(ins)),
-				IARG_END
-			);
-		}
+		if (iter->first == addr)
+			rangesCounter++;
 
-		if (curRange->second == addr)
-		{
-			INS_InsertCall(
-				ins,
-				IPOINT_BEFORE, (AFUNPTR)RangeTailHandle,
-				IARG_ADDRINT, curRange->first,
-				IARG_ADDRINT, curRange->second,
-				IARG_END
-			);
-			rangeInProgress = false;
-		}
+		if (rangesCounter && iter->second == addr)
+			rangesCounter--;
 	}
-	else
-	{
-		curRange = rangesToTest.find(addr);
-		if (curRange != rangesToTest.end() && curRange->first == addr)
-		{
-			rangeInProgress = true;
-			INS_InsertCall(
-				ins,
-				IPOINT_BEFORE, (AFUNPTR)RangeHeadHandle,
-				IARG_ADDRINT, addr,
-				IARG_PTR, new string(INS_Disassemble(ins)),
-				IARG_CONTEXT,
-				IARG_END
-			);
-		}
-	}
-	
 }
