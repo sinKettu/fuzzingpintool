@@ -377,6 +377,8 @@ VOID FromMemoryHandler(UINT32 index, ADDRINT readAddr)
 	DataFromMemoryVec.at(index).ReadAddr = readAddr;
 }
 
+// Сделать возможность читать не только из самого адреса
+// Но и представить значение по данному адресу как адрес и прочитать по нему
 VOID ReadWithRegHandler(UINT32 index, UINT32 offset, REG reg)
 {
 	ADDRINT *readAddr = reinterpret_cast<ADDRINT*> (reg + static_cast<INT32>(offset));
@@ -413,26 +415,26 @@ VOID Test_Instruction(INS ins, void*)
 
 	// Range part
 
-	if (rangesCounter)
-	{
-		InstructionInfo insInfo;
-		insInfo.Address = addr;
-		insInfo.Disassembled = INS_Disassemble(ins);
-		insInfo.VisitsCount = 0;
-		insInRanges.push_back(insInfo);
-
-		INS_InsertCall(
-			ins,
-			IPOINT_BEFORE, (AFUNPTR)RangeInsHandler,
-			IARG_UINT32, insInRanges.size() - 1,
-			IARG_END
-		);
-	}
-
 	for (map<ADDRINT, ADDRINT>::iterator iter = rangesToTest.begin(); iter != rangesToTest.end(); iter++)
 	{
 		if (iter->first == addr)
 			rangesCounter++;
+
+		if (rangesCounter)
+		{
+			InstructionInfo insInfo;
+			insInfo.Address = addr;
+			insInfo.Disassembled = INS_Disassemble(ins);
+			insInfo.VisitsCount = 0;
+			insInRanges.push_back(insInfo);
+
+			INS_InsertCall(
+				ins,
+				IPOINT_BEFORE, (AFUNPTR)RangeInsHandler,
+				IARG_UINT32, insInRanges.size() - 1,
+				IARG_END
+			);
+		}
 
 		if (rangesCounter && iter->second == addr)
 			rangesCounter--;
