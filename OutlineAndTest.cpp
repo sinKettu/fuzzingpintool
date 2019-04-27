@@ -7,8 +7,6 @@
 #include "FuzzingPinTool.h"
 using namespace std;
 
-typedef map<ADDRINT, ReadInfo> ReadData;
-
 struct InstructionInfo
 {
 	UINT32 Address;
@@ -24,10 +22,14 @@ struct ReadInfo
 
 struct DataFromMemory
 {
-	ADDRINT insAddress;
+	ADDRINT InsAddress;
+	ADDRINT ReadAddr;
 	UINT32 IntVal;
 	string StrVal;
 };
+
+// Из-за того, что map, нельзя читать два адреса на одной инструкции
+typedef map<ADDRINT, ReadInfo> ReadData;
 
 ofstream OatFout;
 
@@ -287,7 +289,7 @@ VOID Test_Fini(INT32 exitCode, void*)
 		OatFout << "[READ FROM MEMORY]" << endl;
 		for (UINT32 i = 0; i < DataFromMemoryVec.size(); i++)
 		{
-			OatFout << "At " << hexstr(DataFromMemoryVec.at(i).insAddress) << ":" << endl;
+			OatFout << "At " << hexstr(DataFromMemoryVec.at(i).InsAddress) << ":" << endl;
 			OatFout << "Integer Value:\t" << hexstr(DataFromMemoryVec.at(i).IntVal) << endl;
 			OatFout << "String Value:\t" << DataFromMemoryVec.at(i).StrVal << endl;
 		}
@@ -372,6 +374,7 @@ VOID FromMemoryHandler(UINT32 index, ADDRINT readAddr)
 
 	DataFromMemoryVec.at(index).IntVal = intVal;
 	DataFromMemoryVec.at(index).StrVal = strVal;
+	DataFromMemoryVec.at(index).ReadAddr = readAddr;
 }
 
 VOID ReadWithRegHandler(UINT32 index, UINT32 offset, REG reg)
@@ -379,7 +382,7 @@ VOID ReadWithRegHandler(UINT32 index, UINT32 offset, REG reg)
 	ADDRINT *readAddr = reinterpret_cast<ADDRINT*> (reg + static_cast<INT32>(offset));
 	UINT32 intVal = 0;
 	PIN_SafeCopy(&intVal, readAddr, 4);
-	string strVal = 0;
+	string strVal = "";
 	char tmp = 0;
 	while (true)
 	{
@@ -388,6 +391,7 @@ VOID ReadWithRegHandler(UINT32 index, UINT32 offset, REG reg)
 		{
 			strVal.push_back(tmp);
 			tmp = 0;
+			readAddr++;
 		}
 		else
 		{
@@ -398,8 +402,11 @@ VOID ReadWithRegHandler(UINT32 index, UINT32 offset, REG reg)
 
 	DataFromMemoryVec.at(index).IntVal = intVal;
 	DataFromMemoryVec.at(index).StrVal = strVal;
+	DataFromMemoryVec.at(index).ReadAddr = reinterpret_cast<ADDRINT>(readAddr);
 }
 
+// При чтении из памяти запоминается значение
+// От последнего посещения инструкции, а не все!
 VOID Test_Instruction(INS ins, void*)
 {
 	ADDRINT addr = INS_Address(ins);
@@ -437,7 +444,7 @@ VOID Test_Instruction(INS ins, void*)
 	if (iter != toRead.end())
 	{
 		DataFromMemory dfm;
-		dfm.insAddress = addr;
+		dfm.InsAddress = addr;
 		DataFromMemoryVec.push_back(dfm);
 
 		if (iter->second.RegisterPointer != RegsRef.end())
@@ -447,7 +454,7 @@ VOID Test_Instruction(INS ins, void*)
 				IPOINT_BEFORE, (AFUNPTR)ReadWithRegHandler,
 				IARG_UINT32, DataFromMemoryVec.size() - 1,
 				IARG_UINT32, static_cast<UINT32>(iter->second.ReadAddress),
-				IARG_REG_VALUE, iter->second.RegisterPointer,
+				IARG_REG_VALUE, (iter->second.RegisterPointer)->second,
 				IARG_END
 			);
 		}
