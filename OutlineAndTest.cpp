@@ -4,24 +4,29 @@
 	and saving instructions contexts)
 */
 
-/*
-	TODO: 
-		-	Routines tests without first (or any)	(X)
-			instructions							(X)
-		-	Ranges tests							(X)
-*/
-
-#pragma once
 #include "FuzzingPinTool.h"
 using namespace std;
 
-typedef map<ADDRINT, pair<INT32, UINT8>> ReadData;
+typedef map<ADDRINT, ReadInfo> ReadData;
 
 struct InstructionInfo
 {
 	UINT32 Address;
 	string Disassembled;
 	UINT32 VisitsCount;
+};
+
+struct ReadInfo
+{
+	INT32 ReadAddress;
+	map<string, REG>::iterator RegisterPointer;
+};
+
+struct DataFromMemory
+{
+	ADDRINT insAddress;
+	UINT32 IntVal;
+	string StrVal;
 };
 
 ofstream OatFout;
@@ -57,6 +62,10 @@ UINT32 rangesCounter = 0;
 vector<InstructionInfo> insInRanges;
 
 ReadData toRead;
+
+map<string, REG> RegsRef;
+
+vector<DataFromMemory> DataFromMemoryVec;
 
 /* R O U T I N E S */
 
@@ -94,10 +103,9 @@ VOID Outline_Fini(INT32 exitCode, void*)
 }
 
 // Случай когда не вычитается и не прибавляется ничего к регистру
-VOID ParseRead(string line, ADDRINT &insAddr, INT32 &readAddr, UINT8 &reg)
+VOID ParseRead(string line, ADDRINT &insAddr, INT32 &readAddr, map<string, REG>::iterator &iter)
 {
 	UINT32 i = 0;
-	char *regsNames[] = { "eax", "ebx", "ecx", "edx", "esi", "edi", "esp", "ebp" };
 	for (; i < line.length() && line[i] != ' '; i++){}
 	if (i < line.length())
 	{
@@ -108,45 +116,48 @@ VOID ParseRead(string line, ADDRINT &insAddr, INT32 &readAddr, UINT8 &reg)
 
 		i++;
 		tmp = line.substr(i, 3);
-		UINT32 j = 0;
-		for (; j < 8 && strcmp(regsNames[j], tmp.c_str()); j++){}
-		if (j < 8)
+		iter = RegsRef.find(tmp);
+
+		if(iter != RegsRef.end())
 		{
 			i += 3;
 			if (line[i] == '-')
 			{
 				i++;
-				reg = 1 << j;
 				tmp = line.substr(i, line.size());
 				readAddr = 0 - strtol(tmp.c_str(), nullptr, 16);
 				if (!readAddr)
 				{
 					insAddr = 0;
 					readAddr = 0;
+					iter = RegsRef.end();
 				}
 			}
 			else if (line[i] == '+')
 			{
 				i++;
-				reg = 1 << j;
 				tmp = line.substr(i, line.size());
 				readAddr = strtol(tmp.c_str(), nullptr, 16);
 				if (!readAddr)
 				{
 					insAddr = 0;
 					readAddr = 0;
+					iter = RegsRef.end();
 				}
+			}
+			else if (i == line.length())
+			{
+				readAddr = 0;
 			}
 			else
 			{
-				reg = 0xff;
 				insAddr = 0;
 				readAddr = 0;
+				iter = RegsRef.end();
 			}
 		}
 		else
 		{
-			reg = false;
 			readAddr = static_cast<INT32>(strtoul(line.c_str() + i, nullptr, 16));
 			if (!readAddr)
 			{
@@ -212,13 +223,28 @@ BOOL Test_LoadList(string path)
 		}
 		else if (flags == 0x03)
 		{
+			if (RegsRef.empty())
+			{
+				RegsRef.insert(make_pair("eax", REG_EAX));
+				RegsRef.insert(make_pair("ebx", REG_EBX));
+				RegsRef.insert(make_pair("ecx", REG_ECX));
+				RegsRef.insert(make_pair("edx", REG_EDX));
+				RegsRef.insert(make_pair("esi", REG_ESI));
+				RegsRef.insert(make_pair("edi", REG_EDI));
+				RegsRef.insert(make_pair("esp", REG_ESP));
+				RegsRef.insert(make_pair("ebp", REG_EBP));
+			}
+
 			ADDRINT insAddr = 0; 
 			INT32 readAddr = 0;
-			UINT8 reg = false;
-			ParseRead(line, insAddr, readAddr, reg);
-			if (readAddr && insAddr)
+			map<string, REG>::iterator iter;
+			ParseRead(line, insAddr, readAddr, iter);
+			if (insAddr)
 			{
-				toRead.insert(make_pair(insAddr, make_pair(readAddr, reg)));
+				ReadInfo ri;
+				ri.ReadAddress = readAddr;
+				ri.RegisterPointer = iter;
+				toRead.insert(make_pair(insAddr, ri));
 			}
 		}
 		
@@ -256,6 +282,17 @@ VOID Test_Fini(INT32 exitCode, void*)
 		}
 		OatFout << endl;
 	}
+	if (!DataFromMemoryVec.empty())
+	{
+		OatFout << "[READ FROM MEMORY]" << endl;
+		for (UINT32 i = 0; i < DataFromMemoryVec.size(); i++)
+		{
+			OatFout << "At " << hexstr(DataFromMemoryVec.at(i).insAddress) << ":" << endl;
+			OatFout << "Integer Value:\t" << hexstr(DataFromMemoryVec.at(i).IntVal) << endl;
+			OatFout << "String Value:\t" << DataFromMemoryVec.at(i).StrVal << endl;
+		}
+	}
+	
 	OatFout.close();
 }
 
@@ -311,6 +348,58 @@ VOID RangeInsHandler(UINT32 insID)
 	insInRanges[insID].VisitsCount++;
 }
 
+VOID FromMemoryHandler(UINT32 index, ADDRINT readAddr)
+{
+	ADDRINT *readAddrPtr = reinterpret_cast<ADDRINT*>(readAddr);
+	UINT32 intVal = 0;
+	PIN_SafeCopy(&intVal, readAddrPtr, 4);
+	string strVal = 0;
+	char tmp = 0;
+	while (true)
+	{
+		PIN_SafeCopy(&tmp, readAddrPtr, 1);
+		if (tmp)
+		{
+			strVal.push_back(tmp);
+			tmp = 0;
+		}
+		else
+		{
+			strVal.push_back(0);
+			break;
+		}
+	}
+
+	DataFromMemoryVec.at(index).IntVal = intVal;
+	DataFromMemoryVec.at(index).StrVal = strVal;
+}
+
+VOID ReadWithRegHandler(UINT32 index, UINT32 offset, REG reg)
+{
+	ADDRINT *readAddr = reinterpret_cast<ADDRINT*> (reg + static_cast<INT32>(offset));
+	UINT32 intVal = 0;
+	PIN_SafeCopy(&intVal, readAddr, 4);
+	string strVal = 0;
+	char tmp = 0;
+	while (true)
+	{
+		PIN_SafeCopy(&tmp, readAddr, 1);
+		if (tmp)
+		{
+			strVal.push_back(tmp);
+			tmp = 0;
+		}
+		else
+		{
+			strVal.push_back(0);
+			break;
+		}
+	}
+
+	DataFromMemoryVec.at(index).IntVal = intVal;
+	DataFromMemoryVec.at(index).StrVal = strVal;
+}
+
 VOID Test_Instruction(INS ins, void*)
 {
 	ADDRINT addr = INS_Address(ins);
@@ -347,21 +436,30 @@ VOID Test_Instruction(INS ins, void*)
 	ReadData::iterator iter = toRead.find(addr);
 	if (iter != toRead.end())
 	{
-		UINT8 reg = iter->second.second;
-		INT32 readAddr = iter->second.first;
-		if (reg == 0xff)
+		DataFromMemory dfm;
+		dfm.insAddress = addr;
+		DataFromMemoryVec.push_back(dfm);
+
+		if (iter->second.RegisterPointer != RegsRef.end())
 		{
 			INS_InsertCall(
 				ins,
-				IPOINT_BEFORE, (AFUNPTR)FromMemoryHandler,
-				IARG_ADDRINT, addr,
-				IARG_ADDRINT, (ADDRINT)readAddr,
+				IPOINT_BEFORE, (AFUNPTR)ReadWithRegHandler,
+				IARG_UINT32, DataFromMemoryVec.size() - 1,
+				IARG_UINT32, static_cast<UINT32>(iter->second.ReadAddress),
+				IARG_REG_VALUE, iter->second.RegisterPointer,
 				IARG_END
 			);
 		}
 		else
 		{
-
+			INS_InsertCall(
+				ins,
+				IPOINT_BEFORE, (AFUNPTR)FromMemoryHandler,
+				IARG_UINT32, DataFromMemoryVec.size() - 1,
+				IARG_ADDRINT, static_cast<ADDRINT>(iter->second.ReadAddress),
+				IARG_END
+			);
 		}
 	}
 }
