@@ -22,7 +22,6 @@ struct ReadInfo
 
 struct DataFromMemory
 {
-	ADDRINT InsAddress;
 	ADDRINT ReadAddr;
 	UINT32 IntVal;
 	string StrVal;
@@ -304,8 +303,9 @@ VOID Test_Fini(INT32 exitCode, void*)
 			OatFout << "Instruction Address: " << hexstr(rd->first) << endl;
 			for (UINT32 index = 0; index < rd->second.size(); index++)
 			{
-				OatFout << "\n\tInteger Value:\t" << hexstr(rd->second.at(index).IntVal) << endl;
-				OatFout << "\tString Value:\t" << rd->second.at(index).StrVal << endl;
+				OatFout << "\n\tAddress:\t" << hexstr(rd->second.at(index).ReadAddr) << endl;
+				OatFout << "\tInteger:\t" << hexstr(rd->second.at(index).IntVal) << endl;
+				OatFout << "\tString:\t" << rd->second.at(index).StrVal << endl;
 			}
 			OatFout << endl;
 		}
@@ -389,7 +389,6 @@ VOID FromMemoryHandler(ADDRINT addr, ADDRINT readAddr)
 	}
 
 	DataFromMemory dfm;
-	dfm.InsAddress = addr;
 	dfm.ReadAddr = readAddr;
 	dfm.IntVal = intVal;
 	dfm.StrVal = strVal;
@@ -423,7 +422,6 @@ VOID ReadWithRegHandler(ADDRINT addr, UINT32 offset, REG reg)
 	}
 
 	DataFromMemory dfm;
-	dfm.InsAddress = addr;
 	dfm.ReadAddr = reinterpret_cast<ADDRINT>(readAddr);
 	dfm.IntVal = intVal;
 	dfm.StrVal = strVal;
