@@ -25,6 +25,8 @@ struct DataFromMemory
 	ADDRINT ReadAddr;
 	UINT32 IntVal;
 	string StrVal;
+	UINT32 RefIntVal;
+	string RefStrVal;
 };
 
 // »з-за того, что map, нельз€ читать два адреса на одной инструкции
@@ -306,6 +308,17 @@ VOID Test_Fini(INT32 exitCode, void*)
 				OatFout << "\n\tAddress:\t" << hexstr(rd->second.at(index).ReadAddr) << endl;
 				OatFout << "\tInteger:\t" << hexstr(rd->second.at(index).IntVal) << endl;
 				OatFout << "\tString:\t" << rd->second.at(index).StrVal << endl;
+				
+				if (rd->second.at(index).RefIntVal)
+					OatFout << "\tReferenced Integer:\t\t" << hexstr(rd->second.at(index).RefIntVal) << endl;
+				else
+					OatFout << "\tReferenced Integer:\t\tNULL\n";
+
+				if (rd->second.at(index).RefIntVal & 0xff)
+					OatFout << "\tReferenced String:\t\t" << rd->second.at(index).RefStrVal << endl;
+				else
+					OatFout << "\tReferenced String:\t\tNULL\n";
+
 			}
 			OatFout << endl;
 		}
@@ -366,34 +379,65 @@ VOID RangeInsHandler(UINT32 insID)
 	insInRanges[insID].VisitsCount++;
 }
 
-VOID FromMemoryHandler(ADDRINT addr, ADDRINT readAddr)
+VOID ReadStringFromAddress(ADDRINT *from, string &val)
 {
-	ADDRINT *readAddrPtr = reinterpret_cast<ADDRINT*>(readAddr);
-	UINT32 intVal = 0;
-	PIN_SafeCopy(&intVal, readAddrPtr, 4);
-	string strVal = 0;
+	val = "";
 	char tmp = 0;
+	UINT32 t = 0;
 	while (true)
 	{
-		PIN_SafeCopy(&tmp, readAddrPtr, 1);
-		if (tmp)
+		PIN_SafeCopy(&t, from, 4);
+		if (t)
 		{
-			strVal.push_back(tmp);
-			tmp = 0;
+			for (UINT32 i = 0; i < 4; i++)
+			{
+				char a = *(reinterpret_cast<char*>(&t) + i);
+				if (a)
+					val.push_back(a);
+				else
+					return;
+			}
+			t = 0;
+			from++;
 		}
 		else
-		{
-			strVal.push_back(0);
-			break;
-		}
+			return;
+	}
+}
+
+VOID ReadFromAddress(ADDRINT at, ADDRINT *from)
+{
+	UINT32 intVal = 0;
+	ADDRINT *readAddr = from;
+	PIN_SafeCopy(&intVal, readAddr, 4);
+	string strVal = "";
+	ReadStringFromAddress(readAddr, strVal);
+
+	UINT32 refIntVal = 0;
+	string refStrVal = "";
+	if (intVal)
+	{
+		ADDRINT *referencedVal = reinterpret_cast<ADDRINT*>(static_cast<ADDRINT>(intVal));
+		PIN_SafeCopy(&refIntVal, referencedVal, 4);
+		if (refIntVal & 0xff)
+			ReadStringFromAddress(referencedVal, refStrVal);
+
 	}
 
 	DataFromMemory dfm;
-	dfm.ReadAddr = readAddr;
+	dfm.ReadAddr = reinterpret_cast<ADDRINT>(from);
 	dfm.IntVal = intVal;
 	dfm.StrVal = strVal;
+	dfm.RefIntVal = refIntVal;
+	dfm.RefStrVal = refStrVal;
 
-	readData[addr].push_back(dfm);
+	readData[at].push_back(dfm);
+}
+
+VOID FromMemoryHandler(ADDRINT addr, ADDRINT readAddr)
+{
+	ADDRINT *readAddrPtr = reinterpret_cast<ADDRINT*>(readAddr);
+	ReadFromAddress(addr, readAddrPtr);
 }
 
 // —делать возможность читать не только из самого адреса
@@ -401,32 +445,7 @@ VOID FromMemoryHandler(ADDRINT addr, ADDRINT readAddr)
 VOID ReadWithRegHandler(ADDRINT addr, UINT32 offset, REG reg)
 {
 	ADDRINT *readAddr = reinterpret_cast<ADDRINT*> (reg + static_cast<INT32>(offset));
-	UINT32 intVal = 0;
-	PIN_SafeCopy(&intVal, readAddr, 4);
-	string strVal = "";
-	char tmp = 0;
-	while (true)
-	{
-		PIN_SafeCopy(&tmp, readAddr, 1);
-		if (tmp)
-		{
-			strVal.push_back(tmp);
-			tmp = 0;
-			readAddr++;
-		}
-		else
-		{
-			strVal.push_back(0);
-			break;
-		}
-	}
-
-	DataFromMemory dfm;
-	dfm.ReadAddr = reinterpret_cast<ADDRINT>(readAddr);
-	dfm.IntVal = intVal;
-	dfm.StrVal = strVal;
-
-	readData[addr].push_back(dfm);
+	ReadFromAddress(addr, readAddr);
 }
 
 // ѕри чтении из пам€ти запоминаетс€ значение
