@@ -29,7 +29,8 @@ struct DataFromMemory
 };
 
 // »з-за того, что map, нельз€ читать два адреса на одной инструкции
-typedef map<ADDRINT, ReadInfo> ReadData;
+typedef map<ADDRINT, vector<ReadInfo>> DataToRead;
+typedef map<ADDRINT, vector<DataFromMemory>> ReadData;
 
 ofstream OatFout;
 
@@ -63,11 +64,13 @@ UINT32 rangesCounter = 0;
 // Traversed instructions
 vector<InstructionInfo> insInRanges;
 
-ReadData toRead;
+DataToRead toRead;
 
-map<string, REG> RegsRef;
+map<string, REG> regsRef;
 
-vector<DataFromMemory> DataFromMemoryVec;
+//vector<DataFromMemory> DataFromMemoryVec;
+
+ReadData readData;
 
 /* R O U T I N E S */
 
@@ -104,7 +107,6 @@ VOID Outline_Fini(INT32 exitCode, void*)
 	OatFout.close();
 }
 
-// —лучай когда не вычитаетс€ и не прибавл€етс€ ничего к регистру
 VOID ParseRead(string line, ADDRINT &insAddr, INT32 &readAddr, map<string, REG>::iterator &iter)
 {
 	UINT32 i = 0;
@@ -118,9 +120,9 @@ VOID ParseRead(string line, ADDRINT &insAddr, INT32 &readAddr, map<string, REG>:
 
 		i++;
 		tmp = line.substr(i, 3);
-		iter = RegsRef.find(tmp);
+		iter = regsRef.find(tmp);
 
-		if(iter != RegsRef.end())
+		if(iter != regsRef.end())
 		{
 			i += 3;
 			if (line[i] == '-')
@@ -132,7 +134,7 @@ VOID ParseRead(string line, ADDRINT &insAddr, INT32 &readAddr, map<string, REG>:
 				{
 					insAddr = 0;
 					readAddr = 0;
-					iter = RegsRef.end();
+					iter = regsRef.end();
 				}
 			}
 			else if (line[i] == '+')
@@ -144,7 +146,7 @@ VOID ParseRead(string line, ADDRINT &insAddr, INT32 &readAddr, map<string, REG>:
 				{
 					insAddr = 0;
 					readAddr = 0;
-					iter = RegsRef.end();
+					iter = regsRef.end();
 				}
 			}
 			else if (i == line.length())
@@ -155,7 +157,7 @@ VOID ParseRead(string line, ADDRINT &insAddr, INT32 &readAddr, map<string, REG>:
 			{
 				insAddr = 0;
 				readAddr = 0;
-				iter = RegsRef.end();
+				iter = regsRef.end();
 			}
 		}
 		else
@@ -225,16 +227,16 @@ BOOL Test_LoadList(string path)
 		}
 		else if (flags == 0x03)
 		{
-			if (RegsRef.empty())
+			if (regsRef.empty())
 			{
-				RegsRef.insert(make_pair("eax", REG_EAX));
-				RegsRef.insert(make_pair("ebx", REG_EBX));
-				RegsRef.insert(make_pair("ecx", REG_ECX));
-				RegsRef.insert(make_pair("edx", REG_EDX));
-				RegsRef.insert(make_pair("esi", REG_ESI));
-				RegsRef.insert(make_pair("edi", REG_EDI));
-				RegsRef.insert(make_pair("esp", REG_ESP));
-				RegsRef.insert(make_pair("ebp", REG_EBP));
+				regsRef.insert(make_pair("eax", REG_EAX));
+				regsRef.insert(make_pair("ebx", REG_EBX));
+				regsRef.insert(make_pair("ecx", REG_ECX));
+				regsRef.insert(make_pair("edx", REG_EDX));
+				regsRef.insert(make_pair("esi", REG_ESI));
+				regsRef.insert(make_pair("edi", REG_EDI));
+				regsRef.insert(make_pair("esp", REG_ESP));
+				regsRef.insert(make_pair("ebp", REG_EBP));
 			}
 
 			ADDRINT insAddr = 0; 
@@ -246,7 +248,17 @@ BOOL Test_LoadList(string path)
 				ReadInfo ri;
 				ri.ReadAddress = readAddr;
 				ri.RegisterPointer = iter;
-				toRead.insert(make_pair(insAddr, ri));
+				DataToRead::iterator foundAddr = toRead.find(insAddr);
+				if (foundAddr == toRead.end())
+				{
+					vector<ReadInfo> vec;
+					vec.push_back(ri);
+					toRead.insert(make_pair(insAddr, vec));
+				}
+				else
+				{
+					foundAddr->second.push_back(ri);
+				}
 			}
 		}
 		
@@ -284,14 +296,18 @@ VOID Test_Fini(INT32 exitCode, void*)
 		}
 		OatFout << endl;
 	}
-	if (!DataFromMemoryVec.empty())
+	if (!readData.empty())
 	{
 		OatFout << "[READ FROM MEMORY]" << endl;
-		for (UINT32 i = 0; i < DataFromMemoryVec.size(); i++)
+		for (ReadData::iterator rd = readData.begin(); rd != readData.end(); rd++)
 		{
-			OatFout << "At " << hexstr(DataFromMemoryVec.at(i).InsAddress) << ":" << endl;
-			OatFout << "Integer Value:\t" << hexstr(DataFromMemoryVec.at(i).IntVal) << endl;
-			OatFout << "String Value:\t" << DataFromMemoryVec.at(i).StrVal << endl;
+			OatFout << "Instruction Address: " << hexstr(rd->first) << endl;
+			for (UINT32 index = 0; index < rd->second.size(); index++)
+			{
+				OatFout << "\n\tInteger Value:\t" << hexstr(rd->second.at(index).IntVal) << endl;
+				OatFout << "\tString Value:\t" << rd->second.at(index).StrVal << endl;
+			}
+			OatFout << endl;
 		}
 	}
 	
@@ -350,7 +366,7 @@ VOID RangeInsHandler(UINT32 insID)
 	insInRanges[insID].VisitsCount++;
 }
 
-VOID FromMemoryHandler(UINT32 index, ADDRINT readAddr)
+VOID FromMemoryHandler(ADDRINT addr, ADDRINT readAddr)
 {
 	ADDRINT *readAddrPtr = reinterpret_cast<ADDRINT*>(readAddr);
 	UINT32 intVal = 0;
@@ -372,14 +388,18 @@ VOID FromMemoryHandler(UINT32 index, ADDRINT readAddr)
 		}
 	}
 
-	DataFromMemoryVec.at(index).IntVal = intVal;
-	DataFromMemoryVec.at(index).StrVal = strVal;
-	DataFromMemoryVec.at(index).ReadAddr = readAddr;
+	DataFromMemory dfm;
+	dfm.InsAddress = addr;
+	dfm.ReadAddr = readAddr;
+	dfm.IntVal = intVal;
+	dfm.StrVal = strVal;
+
+	readData[addr].push_back(dfm);
 }
 
 // —делать возможность читать не только из самого адреса
 // Ќо и представить значение по данному адресу как адрес и прочитать по нему
-VOID ReadWithRegHandler(UINT32 index, UINT32 offset, REG reg)
+VOID ReadWithRegHandler(ADDRINT addr, UINT32 offset, REG reg)
 {
 	ADDRINT *readAddr = reinterpret_cast<ADDRINT*> (reg + static_cast<INT32>(offset));
 	UINT32 intVal = 0;
@@ -402,9 +422,13 @@ VOID ReadWithRegHandler(UINT32 index, UINT32 offset, REG reg)
 		}
 	}
 
-	DataFromMemoryVec.at(index).IntVal = intVal;
-	DataFromMemoryVec.at(index).StrVal = strVal;
-	DataFromMemoryVec.at(index).ReadAddr = reinterpret_cast<ADDRINT>(readAddr);
+	DataFromMemory dfm;
+	dfm.InsAddress = addr;
+	dfm.ReadAddr = reinterpret_cast<ADDRINT>(readAddr);
+	dfm.IntVal = intVal;
+	dfm.StrVal = strVal;
+
+	readData[addr].push_back(dfm);
 }
 
 // ѕри чтении из пам€ти запоминаетс€ значение
@@ -442,33 +466,38 @@ VOID Test_Instruction(INS ins, void*)
 
 	// Read part
 
-	ReadData::iterator iter = toRead.find(addr);
+	DataToRead::iterator iter = toRead.find(addr);
 	if (iter != toRead.end())
 	{
-		DataFromMemory dfm;
-		dfm.InsAddress = addr;
-		DataFromMemoryVec.push_back(dfm);
+		ReadData::iterator iter1 = readData.find(addr);
+		if (iter1 == readData.end())
+			readData.insert(make_pair(addr, vector<DataFromMemory>()));
 
-		if (iter->second.RegisterPointer != RegsRef.end())
+		for (vector<ReadInfo>::iterator ri = iter->second.begin(); ri != iter->second.end(); ri++)
 		{
-			INS_InsertCall(
-				ins,
-				IPOINT_BEFORE, (AFUNPTR)ReadWithRegHandler,
-				IARG_UINT32, DataFromMemoryVec.size() - 1,
-				IARG_UINT32, static_cast<UINT32>(iter->second.ReadAddress),
-				IARG_REG_VALUE, (iter->second.RegisterPointer)->second,
-				IARG_END
-			);
+			if (ri->RegisterPointer != regsRef.end())
+			{
+				INS_InsertCall(
+					ins,
+					IPOINT_BEFORE, (AFUNPTR)ReadWithRegHandler,
+					IARG_ADDRINT, addr,
+					IARG_UINT32, static_cast<UINT32>(ri->ReadAddress),
+					IARG_REG_VALUE, ri->RegisterPointer->second,
+					IARG_END
+				);
+			}
+			else
+			{
+				INS_InsertCall(
+					ins,
+					IPOINT_BEFORE, (AFUNPTR)FromMemoryHandler,
+					IARG_ADDRINT, addr,
+					IARG_ADDRINT, static_cast<ADDRINT>(ri->ReadAddress),
+					IARG_END
+				);
+			}
 		}
-		else
-		{
-			INS_InsertCall(
-				ins,
-				IPOINT_BEFORE, (AFUNPTR)FromMemoryHandler,
-				IARG_UINT32, DataFromMemoryVec.size() - 1,
-				IARG_ADDRINT, static_cast<ADDRINT>(iter->second.ReadAddress),
-				IARG_END
-			);
-		}
+
+		
 	}
 }
