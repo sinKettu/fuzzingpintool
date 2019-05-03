@@ -3,18 +3,18 @@
 # rtn1
 # rtn2
 
-# List of instructions ranges to test (addresses in hex). NO INTERSECTIONS!
+# List of instructions ranges to test (addresses in hex).
 [RANGE]
 # 06ae34 06aedf
 
 # List of instructions and memory pointers to show
 [READ]
-# 06af59 eax	# Only with lower case letters!
-# 06abcd ebp-0x1  # Without spaces. ONLY "-" and "+"
+# 06af59 eax		# Only with lower case letters!
+# 06abcd ebp-0x1  	# Without spaces. ONLY "-" and "+"
 # 06dcba 0x34890a	# In HEX
 
 # List of instructions and registers to show values (eax, ebx, ecx, edx, esi, edi, ebp, esp)
 [REGS]
 # 06abcd eax
 # 06adef eax ebx esi
-# 0611bb ctxt # all
+# 0611bb ctxt 		# all

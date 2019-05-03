@@ -1,0 +1,11 @@
+# If fault will happen, pin won't restart
+# Signal about routines to fuzz
+[ROUTINE]
+# format is [full name of image] [routine name]
+#..\path\to\dll\or\prog.exe routine_name
+
+# Signal about instructions ranges to fuzz
+[RANGE]
+# format is [full name of image] [start] [end]
+# There must not be any intersections!
+#..\path\to\dll\or\prog.exe 0x11111111	0x12345678
