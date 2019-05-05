@@ -11,7 +11,9 @@ RoutinesToFuzz routinesToFuzz;
 RangesToFuzz rangesToFuzz;
 SavedRoutineData savedRtnData;
 map<UINT32, CONTEXT> savedRtnCtxt;
+map<UINT32, ADDRINT> rtnEntryAddress;
 BOOL fuzzingInProgress = false;
+BOOL called = false;
 
 VOID ParseForRoutine(string str, string &imgName, string &rtnName)
 {
@@ -126,16 +128,21 @@ BOOL Fuzzer_LoadList(string path)
 	return true;
 }
 
-VOID CheckIfFirst(UINT32 id, CONTEXT ctxt)
+VOID CheckIfFirst(UINT32 id, ADDRINT addr, CONTEXT ctxt)
 {
 	if (fuzzingInProgress || savedRtnCtxt.find(id) != savedRtnCtxt.end())
 		return;
 
 	savedRtnCtxt.insert(make_pair(id, ctxt));
+	rtnEntryAddress.insert(make_pair(id, addr));
 }
 
 VOID HandleRtnMemoryRead(UINT32 id, ADDRINT ea, UINT32 size)
 {
+	if (called)
+		return;
+
+	// могут быть ошибки при call в функции, которые также инструментированы
 	if (fuzzingInProgress)
 	{
 		// pass
@@ -150,6 +157,22 @@ VOID HandleRtnMemoryRead(UINT32 id, ADDRINT ea, UINT32 size)
 		PIN_SafeCopy(&val, ptr, size);
 
 		savedRtnData[id].push_back(make_pair(ea, val));
+	}
+}
+
+VOID HandleRtnRet(UINT32 id)
+{
+	if (called)
+		return;
+
+	// могут быть ошибки при call в функции, которые также инструментированы
+	if (fuzzingInProgress)
+	{
+		// report, generating new data, restart
+	}
+	else
+	{
+		// from here fuzzing wiil start
 	}
 }
 
@@ -174,6 +197,7 @@ VOID Fuzzer_Image(IMG img, void*)
 				UINT32 id = RTN_Id(rtn);
 				savedRtnData.insert(make_pair(id, vector<pair<ADDRINT, UINT32>>()));
 
+				BOOL prevIsCall = false;
 				for (INS ins = RTN_InsHead(rtn); INS_Valid(ins); ins = INS_Next(ins))
 				{
 					// Save rtn context if ins is first entry
@@ -182,10 +206,14 @@ VOID Fuzzer_Image(IMG img, void*)
 						ins,
 						IPOINT_BEFORE, (AFUNPTR)CheckIfFirst,
 						IARG_UINT32, id,
+						IARG_ADDRINT, INS_Address(ins),
 						IARG_CONTEXT,
 						IARG_END
 					);
 
+					// If ins is reading from memory:
+					// - save (address, value) in first phase to recover later
+					// - replace valid data on random in second phase
 					if (INS_IsMemoryRead(ins))
 					{
 						INS_InsertCall(
@@ -194,6 +222,29 @@ VOID Fuzzer_Image(IMG img, void*)
 							IARG_UINT32, id,
 							IARG_MEMORYREAD_EA,
 							IARG_MEMORYREAD_SIZE,
+							IARG_END
+						);
+					}
+
+					// Need to complete
+					if (prevIsCall)
+					{
+						prevIsCall = false;
+					}
+					else if (INS_IsCall(ins))
+					{
+						prevIsCall = true;
+					}
+					
+
+					// If ins is ret, fuzzing will be started or continued
+					// from first rtn entry
+					if (INS_IsRet(ins))
+					{
+						INS_InsertCall(
+							ins,
+							IPOINT_BEFORE, (AFUNPTR)HandleRtnRet,
+							IARG_UINT32, id,
 							IARG_END
 						);
 					}
