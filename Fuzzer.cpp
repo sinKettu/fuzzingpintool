@@ -1,9 +1,16 @@
 #include "FuzzingPinTool.h"
 using namespace std;
 
+struct MemoryData
+{
+	ADDRINT Address;
+	ADDRINT Value;
+	ADDRINT Size;
+};
+
 typedef map<string, vector<string>>					RoutinesToFuzz;
 typedef map<string, vector<pair<ADDRINT, ADDRINT>>> RangesToFuzz;
-typedef map<UINT32, vector<pair<ADDRINT, UINT32>>>	SavedRoutineData;
+typedef map<UINT32, vector<MemoryData>>	SavedRoutineData;
 
 /* GLOBALS */
 
@@ -15,6 +22,7 @@ map<UINT32, ADDRINT> rtnEntryAddress;
 UINT32 fuzzedCodeId = 0;
 CONTEXT replacingCtxt;
 BOOL called = false;
+REG regArray[7] = { REG_EAX, REG_EBX, REG_ECX, REG_EDX, REG_ESI, REG_EDI, REG_EBP };
 
 VOID ParseForRoutine(string str, string &imgName, string &rtnName)
 {
@@ -138,6 +146,38 @@ VOID CheckIfFirst(UINT32 id, ADDRINT addr, CONTEXT ctxt)
 	rtnEntryAddress.insert(make_pair(id, addr));
 }
 
+VOID MutateReg()
+{
+	UINT32 choice = rand() % 7;
+	ADDRINT val = rand() & UINT32_MAX;
+	PIN_SetContextReg(&replacingCtxt, regArray[choice], val);
+}
+
+UINT32 MaskBySize(UINT32 size)
+{
+	UINT32 mask = 0x80;
+	size--;
+	while (size--)
+		mask <<= 8;
+
+	mask = (mask << 1) - 1;
+	return mask;
+}
+
+VOID MutateMemoryVal(UINT32 id)
+{
+	if (savedRtnData[id].empty())
+		return;
+
+	UINT32 choice = rand() % savedRtnData[id].size();
+	ADDRINT *ea = reinterpret_cast<ADDRINT*>(savedRtnData[id].at(choice).Address);
+	UINT32 mask = 1 << (8 * savedRtnData[id].at(choice).Size);
+	mask--;
+	UINT32 val = rand() & mask;
+	
+	PIN_SafeCopy(ea, &val, savedRtnData[id].at(choice).Size);
+}
+
 // заменять значения в памяти необходимо непосредственно перед чтением,
 // иначе значения могут быть изменены самой программой
 VOID HandleRtnMemoryRead(UINT32 id, ADDRINT ea, UINT32 size)
@@ -145,6 +185,7 @@ VOID HandleRtnMemoryRead(UINT32 id, ADDRINT ea, UINT32 size)
 	if (id == fuzzedCodeId)
 	{
 		// put memory mutations here
+		MutateMemoryVal(id);
 
 		return;
 	}
@@ -154,11 +195,16 @@ VOID HandleRtnMemoryRead(UINT32 id, ADDRINT ea, UINT32 size)
 		if (size > sizeof(ADDRINT))
 			return;
 
-		UINT32 val = 0;
+		ADDRINT val = 0;
 		ADDRINT *ptr = reinterpret_cast<ADDRINT *>(ea);
 		PIN_SafeCopy(&val, ptr, size);
 
-		savedRtnData[id].push_back(make_pair(ea, val));
+		MemoryData tmp;
+		tmp.Address = ea;
+		tmp.Value = val;
+		tmp.Size = size;
+
+		savedRtnData[id].push_back(tmp);
 	}
 }
 
@@ -173,6 +219,7 @@ VOID HandleRtnRet(UINT32 id)
 			PIN_SaveContext(&rtnCtxt->second, &replacingCtxt);
 
 			// put context mutations here
+			MutateReg();
 
 			PIN_ExecuteAt(&replacingCtxt);
 		}
@@ -183,6 +230,7 @@ VOID HandleRtnRet(UINT32 id)
 	if (id == fuzzedCodeId)
 	{
 		// put context mutations here
+		MutateReg();
 
 		PIN_ExecuteAt(&replacingCtxt);
 	}
