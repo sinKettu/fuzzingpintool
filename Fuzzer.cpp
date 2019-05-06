@@ -12,7 +12,8 @@ RangesToFuzz rangesToFuzz;
 SavedRoutineData savedRtnData;
 map<UINT32, CONTEXT> savedRtnCtxt;
 map<UINT32, ADDRINT> rtnEntryAddress;
-BOOL fuzzingInProgress = false;
+UINT32 fuzzedCodeId = 0;
+CONTEXT replacingCtxt;
 BOOL called = false;
 
 VOID ParseForRoutine(string str, string &imgName, string &rtnName)
@@ -130,24 +131,25 @@ BOOL Fuzzer_LoadList(string path)
 
 VOID CheckIfFirst(UINT32 id, ADDRINT addr, CONTEXT ctxt)
 {
-	if (fuzzingInProgress || savedRtnCtxt.find(id) != savedRtnCtxt.end())
+	if (fuzzedCodeId != 0 || savedRtnCtxt.find(id) != savedRtnCtxt.end())
 		return;
 
 	savedRtnCtxt.insert(make_pair(id, ctxt));
 	rtnEntryAddress.insert(make_pair(id, addr));
 }
 
+// заменять значения в памяти необходимо непосредственно перед чтением,
+// иначе значения могут быть изменены самой программой
 VOID HandleRtnMemoryRead(UINT32 id, ADDRINT ea, UINT32 size)
 {
-	if (called)
-		return;
-
-	// могут быть ошибки при call в функции, которые также инструментированы
-	if (fuzzingInProgress)
+	if (id == fuzzedCodeId)
 	{
-		// pass
+		// put memory mutations here
+
+		return;
 	}
-	else
+	
+	if (fuzzedCodeId == 0)
 	{
 		if (size > sizeof(ADDRINT))
 			return;
@@ -162,17 +164,27 @@ VOID HandleRtnMemoryRead(UINT32 id, ADDRINT ea, UINT32 size)
 
 VOID HandleRtnRet(UINT32 id)
 {
-	if (called)
-		return;
+	if (fuzzedCodeId == 0)
+	{
+		map<UINT32, CONTEXT>::iterator rtnCtxt = savedRtnCtxt.find(id);
+		if (rtnCtxt != savedRtnCtxt.end())
+		{
+			fuzzedCodeId = id;
+			PIN_SaveContext(&rtnCtxt->second, &replacingCtxt);
 
-	// могут быть ошибки при call в функции, которые также инструментированы
-	if (fuzzingInProgress)
-	{
-		// report, generating new data, restart
+			// put context mutations here
+
+			PIN_ExecuteAt(&replacingCtxt);
+		}
+
+		return;
 	}
-	else
+	
+	if (id == fuzzedCodeId)
 	{
-		// from here fuzzing wiil start
+		// put context mutations here
+
+		PIN_ExecuteAt(&replacingCtxt);
 	}
 }
 
@@ -197,7 +209,7 @@ VOID Fuzzer_Image(IMG img, void*)
 				UINT32 id = RTN_Id(rtn);
 				savedRtnData.insert(make_pair(id, vector<pair<ADDRINT, UINT32>>()));
 
-				BOOL prevIsCall = false;
+				//BOOL prevIsCall = false;
 				for (INS ins = RTN_InsHead(rtn); INS_Valid(ins); ins = INS_Next(ins))
 				{
 					// Save rtn context if ins is first entry
@@ -225,17 +237,6 @@ VOID Fuzzer_Image(IMG img, void*)
 							IARG_END
 						);
 					}
-
-					// Need to complete
-					if (prevIsCall)
-					{
-						prevIsCall = false;
-					}
-					else if (INS_IsCall(ins))
-					{
-						prevIsCall = true;
-					}
-					
 
 					// If ins is ret, fuzzing will be started or continued
 					// from first rtn entry
