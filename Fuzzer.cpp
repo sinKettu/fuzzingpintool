@@ -178,8 +178,6 @@ VOID MutateMemoryVal(UINT32 id)
 	PIN_SafeCopy(ea, &val, savedRtnData[id].at(choice).Size);
 }
 
-// заменять значения в памяти необходимо непосредственно перед чтением,
-// иначе значения могут быть изменены самой программой
 VOID HandleRtnMemoryRead(UINT32 id, ADDRINT ea, UINT32 size)
 {
 	if (id == fuzzedCodeId)
