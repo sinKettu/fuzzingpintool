@@ -153,17 +153,6 @@ VOID MutateReg()
 	PIN_SetContextReg(&replacingCtxt, regArray[choice], val);
 }
 
-UINT32 MaskBySize(UINT32 size)
-{
-	UINT32 mask = 0x80;
-	size--;
-	while (size--)
-		mask <<= 8;
-
-	mask = (mask << 1) - 1;
-	return mask;
-}
-
 VOID MutateMemoryVal(UINT32 id)
 {
 	if (savedRtnData[id].empty())
@@ -171,8 +160,7 @@ VOID MutateMemoryVal(UINT32 id)
 
 	UINT32 choice = rand() % savedRtnData[id].size();
 	ADDRINT *ea = reinterpret_cast<ADDRINT*>(savedRtnData[id].at(choice).Address);
-	UINT32 mask = 1 << (8 * savedRtnData[id].at(choice).Size);
-	mask--;
+	UINT32 mask = (1 << (8 * savedRtnData[id].at(choice).Size)) - 1;
 	UINT32 val = rand() & mask;
 	
 	PIN_SafeCopy(ea, &val, savedRtnData[id].at(choice).Size);
