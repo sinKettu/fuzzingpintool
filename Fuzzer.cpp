@@ -26,6 +26,8 @@ UINT32 fuzzedCodeId = 0;
 CONTEXT replacingCtxt;
 UINT8 phase = PREPARATORY_PHASE;
 REG regArray[7] = { REG_EAX, REG_EBX, REG_ECX, REG_EDX, REG_ESI, REG_EDI, REG_EBP };
+map<ADDRINT, UINT32> lastTrace;
+map<ADDRINT, UINT32> currentTrace;
 
 /* ROUTINES */
 
@@ -197,6 +199,8 @@ VOID HandleRtnMemoryRead(UINT32 id, ADDRINT ea, UINT32 size)
 	{
 		// put memory mutations here
 		MutateMemoryVal(id);
+
+		// make conditions to end fuzzing
 	}
 }
 
@@ -227,6 +231,18 @@ VOID HandleRtnRet(UINT32 id)
 	}
 }
 
+VOID FuzzerBblCounter(ADDRINT headIns, UINT32 id)
+{
+	if (phase == PREPARATORY_PHASE && id == fuzzedCodeId)
+	{
+		lastTrace[headIns]++;
+	}
+	else if (phase == FUZZING_PHASE && id == fuzzedCodeId)
+	{
+		currentTrace[headIns]++;
+	}
+}
+
 VOID Fuzzer_Image(IMG img, void*)
 {
 	if (!IMG_Valid(img))
@@ -248,7 +264,6 @@ VOID Fuzzer_Image(IMG img, void*)
 				UINT32 id = RTN_Id(rtn);
 				savedRtnData.insert(make_pair(id, vector<pair<ADDRINT, UINT32>>()));
 
-				//BOOL prevIsCall = false;
 				for (INS ins = RTN_InsHead(rtn); INS_Valid(ins); ins = INS_Next(ins))
 				{
 					// Save rtn context if ins is first entry
@@ -292,7 +307,17 @@ VOID Fuzzer_Image(IMG img, void*)
 
 				for (BBL bbl = RTN_BblHead(rtn); BBL_Valid(bbl); bbl = BBL_Next(bbl))
 				{
+					ADDRINT bblHead = INS_Address(BBL_InsHead(bbl));
+					lastTrace.insert(make_pair(bblHead, 0));
+					currentTrace.insert(make_pair(bblHead, 0));
 
+					BBL_InsertCall(
+						bbl,
+						IPOINT_BEFORE, (AFUNPTR)FuzzerBblCounter,
+						IARG_ADDRINT, bblHead,
+						IARG_UINT32, id,
+						IARG_END
+					);
 				}
 			}
 		}
