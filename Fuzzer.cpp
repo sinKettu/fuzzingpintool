@@ -158,7 +158,7 @@ BOOL Fuzzer_LoadList(string path)
 				{
 					vector<pair<ADDRINT, ADDRINT>> tmp;
 					tmp.push_back(make_pair(start, end));
-					routinesToFuzz.insert(make_pair(imgName, tmp));
+					rangesToFuzz.insert(make_pair(imgName, tmp));
 				}
 				else
 				{
@@ -361,7 +361,7 @@ VOID Fuzzer_Image(IMG img, void*)
 			if (ri != ii->second.end())
 			{
 				UINT32 id = RTN_Id(rtn);
-				savedRtnData.insert(make_pair(id, vector<pair<ADDRINT, UINT32>>()));
+				savedRtnData.insert(make_pair(id, vector<MemoryData>()));
 
 				for (INS ins = RTN_InsHead(rtn); INS_Valid(ins); ins = INS_Next(ins))
 				{
