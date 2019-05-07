@@ -14,6 +14,7 @@
 # 06dcba 0x34890a	# In HEX
 
 # List of instructions and registers to show values (eax, ebx, ecx, edx, esi, edi, ebp, esp)
+# NOT RELEASED
 [REGS]
 # 06abcd eax
 # 06adef eax ebx esi

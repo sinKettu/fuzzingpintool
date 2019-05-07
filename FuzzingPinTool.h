@@ -14,7 +14,7 @@
 #define DEREFERENCED(x) *(reinterpret_cast<ADDRINT*>(x))
 
 VOID Fuzzer_Image(IMG img, void*);
-VOID Fuzzer_Instrunction(INS ins, void*);
+//VOID Fuzzer_Instrunction(INS ins, void*);
 VOID Fuzzer_Trace(TRACE trc, void*);
 BOOL Fuzzer_LoadList(string path);
 

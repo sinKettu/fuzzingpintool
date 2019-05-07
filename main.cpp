@@ -7,6 +7,7 @@ KNOB<BOOL> KnobOutline(KNOB_MODE_WRITEONCE, "pintool", "outline", "", "Show imag
 KNOB<string> KnobTestList(KNOB_MODE_WRITEONCE, "pintool", "test", "error", "List of routines to test");
 KNOB<string> KnobTrackerList(KNOB_MODE_WRITEONCE, "pintool", "track", "error", "List of values to track");
 KNOB<string> KnobTracerList(KNOB_MODE_WRITEONCE, "pintool", "trace", "error", "List of images to get trace");
+KNOB<string> KnobFuzzerList(KNOB_MODE_WRITEONCE, "pintool", "fuzz", "error", "List of images to get trace");
 
 int main(int argc, char *argv[])
 {
@@ -50,11 +51,14 @@ int main(int argc, char *argv[])
 			PIN_AddFiniFunction(Tracer_Fini, 0);
 		}
 	}
-	else 
+	else if (KnobFuzzerList.Value().compare("error"))
 	{
-		IMG_AddInstrumentFunction(Fuzzer_Image, 0);
-		INS_AddInstrumentFunction(Fuzzer_Instrunction, 0);
-		TRACE_AddInstrumentFunction(Fuzzer_Trace, 0);
+		if (Fuzzer_LoadList(KnobFuzzerList.Value()))
+		{
+			IMG_AddInstrumentFunction(Fuzzer_Image, 0);
+			//INS_AddInstrumentFunction(Fuzzer_Instrunction, 0);
+			TRACE_AddInstrumentFunction(Fuzzer_Trace, 0);
+		}
 	}
 
 	PIN_StartProgram();

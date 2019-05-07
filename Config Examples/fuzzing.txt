@@ -5,6 +5,7 @@
 #..\path\to\dll\or\prog.exe routine_name
 
 # Signal about instructions ranges to fuzz
+# NOT RELEASED
 [RANGE]
 # format is [full name of image] [start] [end]
 # There must not be any intersections!

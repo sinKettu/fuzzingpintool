@@ -111,6 +111,8 @@ BOOL Fuzzer_LoadList(string path)
 	while (true)
 	{
 		getline(fin, line);
+		if (line[0] == '#')
+			continue;
 
 		if (!line.compare("[ROUTINE]"))
 		{
