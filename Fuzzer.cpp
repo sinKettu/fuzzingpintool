@@ -157,24 +157,37 @@ VOID CheckIfFirst(UINT32 id, ADDRINT addr, CONTEXT ctxt)
 	}
 }
 
-VOID MutateReg()
+VOID MutateReg(UINT32 choice)
 {
-	UINT32 choice = rand() % 7;
 	ADDRINT val = rand() & UINT32_MAX;
 	PIN_SetContextReg(&replacingCtxt, regArray[choice], val);
 }
 
-VOID MutateMemoryVal(UINT32 id)
+VOID MutateMemoryVal(UINT32 id, UINT32 choice)
 {
 	if (savedRtnData[id].empty())
 		return;
 
-	UINT32 choice = rand() % savedRtnData[id].size();
+	choice -= 8;
 	ADDRINT *ea = reinterpret_cast<ADDRINT*>(savedRtnData[id].at(choice).Address);
 	UINT32 mask = (1 << (8 * savedRtnData[id].at(choice).Size)) - 1;
 	UINT32 val = rand() & mask;
 	
 	PIN_SafeCopy(ea, &val, savedRtnData[id].at(choice).Size);
+}
+
+VOID Mutate(UINT32 id)
+{
+	UINT32 choice = rand() % (savedRtnData[id].size() + 7);
+	if (choice < 7)
+	{
+		MutateReg(choice);
+	}
+	else
+	{
+		choice -= 7;
+		MutateMemoryVal(id, choice);
+	}
 }
 
 VOID HandleRtnMemoryRead(UINT32 id, ADDRINT ea, UINT32 size)
@@ -198,7 +211,7 @@ VOID HandleRtnMemoryRead(UINT32 id, ADDRINT ea, UINT32 size)
 	else if (phase == FUZZING_PHASE && id == fuzzedCodeId)
 	{
 		// put memory mutations here
-		MutateMemoryVal(id);
+		Mutate(id);
 
 		// make conditions to end fuzzing
 	}
@@ -216,7 +229,8 @@ VOID HandleRtnRet(UINT32 id)
 
 			// put context mutations here
 			srand(time(nullptr));
-			MutateReg();
+			UINT32 choice = rand() % (savedRtnData[id].size() + 7);
+			Mutate(id);
 
 			phase = FUZZING_PHASE;
 			PIN_ExecuteAt(&replacingCtxt);
@@ -225,7 +239,7 @@ VOID HandleRtnRet(UINT32 id)
 	else if (phase == FUZZING_PHASE && id == fuzzedCodeId)
 	{
 		// put context mutations here
-		MutateReg();
+		Mutate(id);
 
 		PIN_ExecuteAt(&replacingCtxt);
 	}
