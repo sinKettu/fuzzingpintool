@@ -14,23 +14,48 @@ struct MemoryData
 
 typedef map<string, vector<string>>					RoutinesToFuzz;
 typedef map<string, vector<pair<ADDRINT, ADDRINT>>> RangesToFuzz;
-typedef map<UINT32, vector<MemoryData>>	SavedRoutineData;
+typedef map<UINT32, vector<MemoryData>>				SavedRoutineData;
 
 /* GLOBALS */
 
+const REG regArray[7] = { REG_EAX, REG_EBX, REG_ECX, REG_EDX, REG_ESI, REG_EDI, REG_EBP };
+
+// Given routines to fuzz
 RoutinesToFuzz routinesToFuzz;
+
+// Given ranges to fuzz
 RangesToFuzz rangesToFuzz;
+
+// Saved (address, value, size) at readings in preparatory phase
 SavedRoutineData savedRtnData;
+
+// Saved rtn entry context
 map<UINT32, CONTEXT> savedRtnCtxt;
+
+// Saved rtn entry address
 map<UINT32, ADDRINT> rtnEntryAddress;
+
+// ID of code part which is currently fuzzed
 UINT32 fuzzedCodeId = 0;
+
+// Entry context to mutate/restart
 CONTEXT replacingCtxt;
+
+// Current phase
 UINT8 phase = PREPARATORY_PHASE;
-REG regArray[7] = { REG_EAX, REG_EBX, REG_ECX, REG_EDX, REG_ESI, REG_EDI, REG_EBP };
+
+// Traversed BBLs in last time and now
 map<ADDRINT, UINT32> lastTrace;
 map<ADDRINT, UINT32> currentTrace;
+
+// Stack of successful mutated values
 vector<UINT32> mutationStack;
+
+// Stack of unsuccessful mutated values (to not be repeated)
 vector<UINT32> unsuccessfulAttempts;
+
+// Count of mutations per value
+// before you consider it a failure
 UINT8 mutationsCounter = ATTEMPTS_COUNT;
 
 /* ROUTINES */
@@ -234,6 +259,13 @@ VOID NextMutation(UINT32 id)
 		else
 			mutationsCounter--;
 	}
+
+	for (UINT32 i = 0; i < lastTrace.size(); i++)
+	{
+		lastTrace[i] = currentTrace[i];
+		currentTrace[i] = 0;
+	}
+
 }
 
 VOID HandleRtnMemoryRead(UINT32 id, ADDRINT ea, UINT32 size)
