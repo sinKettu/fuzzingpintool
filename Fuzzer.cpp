@@ -1,6 +1,9 @@
 #include "FuzzingPinTool.h"
 using namespace std;
 
+#define PREPARATORY_PHASE	0
+#define FUZZING_PHASE		1
+
 struct MemoryData
 {
 	ADDRINT Address;
@@ -21,8 +24,10 @@ map<UINT32, CONTEXT> savedRtnCtxt;
 map<UINT32, ADDRINT> rtnEntryAddress;
 UINT32 fuzzedCodeId = 0;
 CONTEXT replacingCtxt;
-BOOL called = false;
+UINT8 phase = PREPARATORY_PHASE;
 REG regArray[7] = { REG_EAX, REG_EBX, REG_ECX, REG_EDX, REG_ESI, REG_EDI, REG_EBP };
+
+/* ROUTINES */
 
 VOID ParseForRoutine(string str, string &imgName, string &rtnName)
 {
@@ -139,11 +144,15 @@ BOOL Fuzzer_LoadList(string path)
 
 VOID CheckIfFirst(UINT32 id, ADDRINT addr, CONTEXT ctxt)
 {
-	if (fuzzedCodeId != 0 || savedRtnCtxt.find(id) != savedRtnCtxt.end())
-		return;
+	if (phase == PREPARATORY_PHASE)
+	{
+		if (fuzzedCodeId != 0 || savedRtnCtxt.find(id) != savedRtnCtxt.end())
+			return;
 
-	savedRtnCtxt.insert(make_pair(id, ctxt));
-	rtnEntryAddress.insert(make_pair(id, addr));
+		savedRtnCtxt.insert(make_pair(id, ctxt));
+		rtnEntryAddress.insert(make_pair(id, addr));
+		fuzzedCodeId = id;
+	}
 }
 
 VOID MutateReg()
@@ -168,15 +177,7 @@ VOID MutateMemoryVal(UINT32 id)
 
 VOID HandleRtnMemoryRead(UINT32 id, ADDRINT ea, UINT32 size)
 {
-	if (id == fuzzedCodeId)
-	{
-		// put memory mutations here
-		MutateMemoryVal(id);
-
-		return;
-	}
-	
-	if (fuzzedCodeId == 0)
+	if (phase == PREPARATORY_PHASE && id == fuzzedCodeId)
 	{
 		if (size > sizeof(ADDRINT))
 			return;
@@ -192,11 +193,16 @@ VOID HandleRtnMemoryRead(UINT32 id, ADDRINT ea, UINT32 size)
 
 		savedRtnData[id].push_back(tmp);
 	}
+	else if (phase == FUZZING_PHASE && id == fuzzedCodeId)
+	{
+		// put memory mutations here
+		MutateMemoryVal(id);
+	}
 }
 
 VOID HandleRtnRet(UINT32 id)
 {
-	if (fuzzedCodeId == 0)
+	if (phase == PREPARATORY_PHASE && id == fuzzedCodeId)
 	{
 		map<UINT32, CONTEXT>::iterator rtnCtxt = savedRtnCtxt.find(id);
 		if (rtnCtxt != savedRtnCtxt.end())
@@ -205,15 +211,14 @@ VOID HandleRtnRet(UINT32 id)
 			PIN_SaveContext(&rtnCtxt->second, &replacingCtxt);
 
 			// put context mutations here
+			srand(time(nullptr));
 			MutateReg();
 
+			phase = FUZZING_PHASE;
 			PIN_ExecuteAt(&replacingCtxt);
 		}
-
-		return;
 	}
-	
-	if (id == fuzzedCodeId)
+	else if (phase == FUZZING_PHASE && id == fuzzedCodeId)
 	{
 		// put context mutations here
 		MutateReg();
@@ -284,7 +289,17 @@ VOID Fuzzer_Image(IMG img, void*)
 						);
 					}
 				}
+
+				for (BBL bbl = RTN_BblHead(rtn); BBL_Valid(bbl); bbl = BBL_Next(bbl))
+				{
+
+				}
 			}
 		}
 	}
+}
+
+VOID Fuzzer_Trace(TRACE trc, void*)
+{
+	// pass
 }
