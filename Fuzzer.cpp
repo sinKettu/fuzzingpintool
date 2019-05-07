@@ -3,6 +3,7 @@ using namespace std;
 
 #define PREPARATORY_PHASE	0
 #define FUZZING_PHASE		1
+#define ATTEMPTS_COUNT		3
 
 struct MemoryData
 {
@@ -28,6 +29,9 @@ UINT8 phase = PREPARATORY_PHASE;
 REG regArray[7] = { REG_EAX, REG_EBX, REG_ECX, REG_EDX, REG_ESI, REG_EDI, REG_EBP };
 map<ADDRINT, UINT32> lastTrace;
 map<ADDRINT, UINT32> currentTrace;
+vector<UINT32> mutationStack;
+vector<UINT32> unsuccessfulAttempts;
+UINT8 mutationsCounter = ATTEMPTS_COUNT;
 
 /* ROUTINES */
 
@@ -168,7 +172,6 @@ VOID MutateMemoryVal(UINT32 id, UINT32 choice)
 	if (savedRtnData[id].empty())
 		return;
 
-	choice -= 8;
 	ADDRINT *ea = reinterpret_cast<ADDRINT*>(savedRtnData[id].at(choice).Address);
 	UINT32 mask = (1 << (8 * savedRtnData[id].at(choice).Size)) - 1;
 	UINT32 val = rand() & mask;
@@ -176,17 +179,70 @@ VOID MutateMemoryVal(UINT32 id, UINT32 choice)
 	PIN_SafeCopy(ea, &val, savedRtnData[id].at(choice).Size);
 }
 
+BOOL CompareTraces()
+{
+	UINT32 lastSum = 0;
+	UINT32 currentSum = 0;
+	for (UINT32 i = 0; i < lastTrace.size(); i++)
+	{
+		lastSum += lastTrace[i];
+		currentSum += currentTrace[i];
+	}
+
+	return currentSum > lastSum;
+}
+
 VOID Mutate(UINT32 id)
 {
-	UINT32 choice = rand() % (savedRtnData[id].size() + 7);
-	if (choice < 7)
+	UINT32 choice;
+
+	if (CompareTraces())
 	{
-		MutateReg(choice);
+		unsuccessfulAttempts.clear();
+		unsuccessfulAttempts = vector<UINT32>(mutationStack);
+		mutationsCounter = ATTEMPTS_COUNT;
+		choice = rand() % (savedRtnData[id].size() + 7);
+		while (find(unsuccessfulAttempts.begin(), unsuccessfulAttempts.end(), choice) != unsuccessfulAttempts.end())
+			choice = rand() % (savedRtnData[id].size() + 7);
+
+		mutationStack.push_back(choice);
 	}
 	else
 	{
-		choice -= 7;
-		MutateMemoryVal(id, choice);
+		if (mutationsCounter == 0)
+		{
+			unsuccessfulAttempts.push_back(mutationStack.back());
+			if (mutationStack.size() == savedRtnData[id].size() + 7)
+			{
+				unsuccessfulAttempts.clear();
+				mutationStack.pop_back();
+				unsuccessfulAttempts = vector<UINT32>(mutationStack);
+			}
+
+			choice = rand() % (savedRtnData[id].size() + 7);
+			while (find(unsuccessfulAttempts.begin(), unsuccessfulAttempts.end(), choice) != unsuccessfulAttempts.end())
+				choice = rand() % (savedRtnData[id].size() + 7);
+
+			mutationStack.back() = choice;
+			mutationsCounter = ATTEMPTS_COUNT;
+		}
+		else if (mutationStack.empty())
+		{
+			choice = rand() % (savedRtnData[id].size() + 7);
+			mutationStack.push_back(choice);
+			mutationsCounter = ATTEMPTS_COUNT;
+		}
+		else
+			mutationsCounter--;
+	}
+	
+	if (mutationStack.back() < 7)
+	{
+		MutateReg(mutationStack.back());
+	}
+	else
+	{
+		MutateMemoryVal(id, mutationStack.back() - 7);
 	}
 }
 
@@ -229,7 +285,6 @@ VOID HandleRtnRet(UINT32 id)
 
 			// put context mutations here
 			srand(time(nullptr));
-			UINT32 choice = rand() % (savedRtnData[id].size() + 7);
 			Mutate(id);
 
 			phase = FUZZING_PHASE;
