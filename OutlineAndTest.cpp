@@ -79,17 +79,18 @@ VOID Outline_Image(IMG img, void*)
 {
 	vector<string> routines;
 	string imgName = IMG_Name(img);
+	ADDRINT base = IMG_LowAddress(img);
 	for (SEC sec = IMG_SecHead(img); SEC_Valid(sec); sec = SEC_Next(sec))
 	{
 		for (RTN rtn = SEC_RtnHead(sec); RTN_Valid(rtn); rtn = RTN_Next(rtn))
 		{
 			RTN_Open(rtn);
-			routines.push_back(hexstr(INS_Address(RTN_InsHead(rtn))) + "\t" + RTN_Name(rtn));
+			routines.push_back(hexstr(INS_Address(RTN_InsHead(rtn)) - base) + "\t" + RTN_Name(rtn));
 			RTN_Close(rtn);
 		}
 	}
 
-	outline.insert(make_pair(imgName, routines));
+	outline.insert(make_pair(hexstr(base) + " " + imgName, routines));
 }
 
 VOID Outline_Fini(INT32 exitCode, void*)
