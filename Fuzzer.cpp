@@ -192,10 +192,9 @@ BOOL CompareTraces()
 	return currentSum > lastSum;
 }
 
-VOID Mutate(UINT32 id)
+VOID NextMutation(UINT32 id)
 {
 	UINT32 choice;
-
 	if (CompareTraces())
 	{
 		unsuccessfulAttempts.clear();
@@ -235,15 +234,6 @@ VOID Mutate(UINT32 id)
 		else
 			mutationsCounter--;
 	}
-	
-	if (mutationStack.back() < 7)
-	{
-		MutateReg(mutationStack.back());
-	}
-	else
-	{
-		MutateMemoryVal(id, mutationStack.back() - 7);
-	}
 }
 
 VOID HandleRtnMemoryRead(UINT32 id, ADDRINT ea, UINT32 size)
@@ -267,7 +257,9 @@ VOID HandleRtnMemoryRead(UINT32 id, ADDRINT ea, UINT32 size)
 	else if (phase == FUZZING_PHASE && id == fuzzedCodeId)
 	{
 		// put memory mutations here
-		Mutate(id);
+		UINT32 choice = mutationStack.back() - 7;
+		if (choice >= 0 && savedRtnData[id].at(choice).Address == ea)
+			MutateMemoryVal(id, choice);
 
 		// make conditions to end fuzzing
 	}
@@ -285,7 +277,9 @@ VOID HandleRtnRet(UINT32 id)
 
 			// put context mutations here
 			srand(time(nullptr));
-			Mutate(id);
+			NextMutation(id);
+			if (mutationStack.back() < 7)
+				MutateReg(mutationStack.back());
 
 			phase = FUZZING_PHASE;
 			PIN_ExecuteAt(&replacingCtxt);
@@ -294,7 +288,9 @@ VOID HandleRtnRet(UINT32 id)
 	else if (phase == FUZZING_PHASE && id == fuzzedCodeId)
 	{
 		// put context mutations here
-		Mutate(id);
+		NextMutation(id);
+		if (mutationStack.back() < 7)
+			MutateReg(mutationStack.back());
 
 		PIN_ExecuteAt(&replacingCtxt);
 	}
