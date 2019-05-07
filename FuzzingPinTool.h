@@ -37,3 +37,5 @@ VOID Tracer_Fini(INT32 code, void*);
 // Common
 
 VOID OutputContext(ofstream *fout, CONTEXT *ctxt);
+VOID ParseForRoutine(string str, string &imgName, string &rtnName);
+VOID ParseForRange(string str, string &imgName, ADDRINT &s, ADDRINT &e);

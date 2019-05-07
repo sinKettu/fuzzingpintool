@@ -9,9 +9,10 @@ using namespace std;
 
 struct InstructionInfo
 {
-	UINT32 Address;
+	ADDRINT Address;
 	string Disassembled;
 	UINT32 VisitsCount;
+	ADDRINT base;
 };
 
 struct ReadInfo
@@ -30,8 +31,10 @@ struct DataFromMemory
 };
 
 // »з-за того, что map, нельз€ читать два адреса на одной инструкции
-typedef map<ADDRINT, vector<ReadInfo>> DataToRead;
-typedef map<ADDRINT, vector<DataFromMemory>> ReadData;
+typedef map<ADDRINT, vector<ReadInfo>>				DataToRead;
+typedef map<ADDRINT, vector<DataFromMemory>>		ReadData;
+typedef map<string, vector<string>>					RoutinesToTest;
+typedef map<string, vector<pair<ADDRINT, ADDRINT>>> RangesToTest;
 
 ofstream OatFout;
 
@@ -48,7 +51,8 @@ map<string, vector<string>> outline;
  */
 
 // List of routines for testing in a case
-vector<string> routinesToTest;
+//vector<string> routinesToTest;
+RoutinesToTest routinesToTest;
 
 // Rtn ID -> {addr, disassemblies, visits counts}
 map<UINT32, vector<InstructionInfo>> testedRtns;
@@ -56,8 +60,11 @@ map<UINT32, vector<InstructionInfo>> testedRtns;
 // Rtn ID -> Rtn Name
 map<UINT32, string> rtnsRefs;
 
+// Rtn ID -> Rtn base address
+map<UINT32, ADDRINT> rtnsBases;
+
 // List of addresses ranges [From; To] for testing in a case
-map<ADDRINT, ADDRINT> rangesToTest;
+RangesToTest rangesToTest;
 
 // Count of ranges in progress
 UINT32 rangesCounter = 0;
@@ -209,22 +216,47 @@ BOOL Test_LoadList(string path)
 		if (flags == 0x01)
 		{
 			if (line[0] != '#' && line.length())
-				routinesToTest.push_back(line);
+			{
+				string imgName = "";
+				string rtnName = "";
+				ParseForRoutine(line, imgName, rtnName);
+				if (imgName.size() && rtnName.size())
+				{
+					RoutinesToTest::iterator iter = routinesToTest.find(imgName);
+					if (iter == routinesToTest.end())
+					{
+						vector<string> tmp;
+						tmp.push_back(rtnName);
+						routinesToTest.insert(make_pair(imgName, tmp));
+					}
+					else
+					{
+						iter->second.push_back(rtnName);
+					}
+				}
+			}
 		}
 		else if (flags == 0x02)
 		{
 			if (line[0] != '#' && line.length())
 			{
-				UINT32 first, second;
-				char *ptr;
-				first = strtoul(line.c_str(), &ptr, 16);
-				if (first)
+				string imgName;
+				ADDRINT start = 0, end = 0;
+				ParseForRange(line, imgName, start, end);
+				if (start && end)
 				{
-					second = strtoul(ptr, nullptr, 16);
-					if (second)
-						rangesToTest.insert(make_pair(first, second));
+					RangesToTest::iterator iter = rangesToTest.find(imgName);
+					if (iter == rangesToTest.end())
+					{
+						vector<pair<ADDRINT, ADDRINT>> tmp;
+						tmp.push_back(make_pair(start, end));
+						rangesToTest.insert(make_pair(imgName, tmp));
+					}
+					else
+					{
+						iter->second.push_back(make_pair(start, end));
+					}
 				}
-				
 			}
 		}
 		else if (flags == 0x03)
@@ -277,7 +309,8 @@ VOID Test_Fini(INT32 exitCode, void*)
 	OatFout.open("outdata.txt", ios::app);
 	for (map<UINT32, vector<InstructionInfo>>::iterator iter = testedRtns.begin(); iter != testedRtns.end(); iter++)
 	{
-		OatFout << "[ROUTINE] " << rtnsRefs[iter->first] << endl;
+		OatFout << "[ROUTINE] " << endl << rtnsRefs[iter->first] << endl;
+		OatFout << "Base Address:\t" << hexstr(rtnsBases[iter->first]) << endl;
 		OatFout << "[DISASSEMBLED]\n";
 		for (UINT32 i = 0; i < iter->second.size(); i++)
 		{
@@ -285,16 +318,19 @@ VOID Test_Fini(INT32 exitCode, void*)
 		}
 		OatFout << endl;
 	}
-	for (map<ADDRINT, ADDRINT>::iterator iter = rangesToTest.begin(); iter != rangesToTest.end(); iter++)
+	for (RangesToTest::iterator iter = rangesToTest.begin(); iter != rangesToTest.end(); iter++)
 	{
-		OatFout << "[RANGE] " << hexstr(iter->first) << ": " << hexstr(iter->second) << endl;
-		OatFout << "[DISASSEMBLED]" << endl;
-		for (UINT32 i = 0; i < insInRanges.size(); i++)
+		OatFout << "[IMAGE]" << endl << iter->first << endl;
+		for (UINT32 i = 0; i < iter->second.size(); i++)
 		{
-			if (insInRanges.at(i).Address >= iter->first && insInRanges.at(i).Address <= iter->second)
+			OatFout << "[RANGE]" << "\t" << hexstr(iter->second.at(i).first) << ": " << hexstr(iter->second.at(i).second) << endl;
+			OatFout << "\nBASE: OFFSET\tDISASSEMBLED" << endl;
+			for (UINT32 j = 0; j < insInRanges.size(); j++)
 			{
-				OatFout << hexstr(insInRanges.at(i).Address) << "\t" << insInRanges.at(i).Disassembled << "\t[" << insInRanges.at(i).VisitsCount << "]\n";
+				if (insInRanges.at(j).Address >= iter->second.at(i).first && insInRanges.at(j).Address <= iter->second.at(i).second)
+					OatFout << hexstr(insInRanges.at(j).base) << ": " << hexstr(insInRanges.at(j).Address) << "\t" << insInRanges.at(j).Disassembled << endl;
 			}
+
 		}
 		OatFout << endl;
 	}
@@ -337,9 +373,15 @@ VOID Test_Routine(RTN rtn, void*)
 {
 	if (!RTN_Valid(rtn))
 		return;
-	
+
+	IMG img = SEC_Img(RTN_Sec(rtn));
+	string imgName = IMG_Name(img);
+	RoutinesToTest::iterator iter = routinesToTest.find(imgName);
+	if (iter == routinesToTest.end())
+		return;
+
 	string name = RTN_Name(rtn);
-	if (find(routinesToTest.begin(), routinesToTest.end(), name) == routinesToTest.end())
+	if (find(iter->second.begin(), iter->second.end(), name) == iter->second.end())
 		return;
 
 	RTN_Open(rtn);
@@ -348,12 +390,15 @@ VOID Test_Routine(RTN rtn, void*)
 	if (testedRtns.find(id) == testedRtns.end())
 	{
 		rtnsRefs.insert(make_pair(id, name));
+		ADDRINT base = IMG_LowAddress(img);
+		rtnsBases.insert(make_pair(id, base));
+
 		UINT32 counter = 0;
 		vector<InstructionInfo> rtnInstructions;
 		for (INS ins = RTN_InsHead(rtn); INS_Valid(ins); ins = INS_Next(ins))
 		{
 			InstructionInfo current;
-			current.Address = INS_Address(ins);
+			current.Address = INS_Address(ins) - base;
 			current.Disassembled = INS_Disassemble(ins);
 			current.VisitsCount = 0;
 			rtnInstructions.push_back(current);
@@ -441,33 +486,40 @@ VOID FromMemoryHandler(ADDRINT addr, ADDRINT readAddr)
 	ReadFromAddress(addr, readAddrPtr);
 }
 
-// —делать возможность читать не только из самого адреса
-// Ќо и представить значение по данному адресу как адрес и прочитать по нему
 VOID ReadWithRegHandler(ADDRINT addr, UINT32 offset, REG reg)
 {
 	ADDRINT *readAddr = reinterpret_cast<ADDRINT*> (reg + static_cast<INT32>(offset));
 	ReadFromAddress(addr, readAddr);
 }
 
-// ѕри чтении из пам€ти запоминаетс€ значение
-// ќт последнего посещени€ инструкции, а не все!
 VOID Test_Instruction(INS ins, void*)
 {
 	ADDRINT addr = INS_Address(ins);
 
 	// Range part
 
-	for (map<ADDRINT, ADDRINT>::iterator iter = rangesToTest.begin(); iter != rangesToTest.end(); iter++)
+	RTN rtn = INS_Rtn(ins);
+	if (!RTN_Valid(rtn))
+		return;
+
+	IMG img = SEC_Img(RTN_Sec(rtn));
+	RangesToTest::iterator im = rangesToTest.find(IMG_Name(img));
+	if (im == rangesToTest.end())
+		return;
+
+	ADDRINT base = IMG_LowAddress(img);
+	for(vector<pair<ADDRINT, ADDRINT>>::iterator iter = im->second.begin(); iter != im->second.end(); iter++)
 	{
-		if (iter->first == addr)
+		if (iter->first == addr - base)
 			rangesCounter++;
 
 		if (rangesCounter)
 		{
 			InstructionInfo insInfo;
-			insInfo.Address = addr;
+			insInfo.Address = addr - base;
 			insInfo.Disassembled = INS_Disassemble(ins);
 			insInfo.VisitsCount = 0;
+			insInfo.base = base;
 			insInRanges.push_back(insInfo);
 
 			INS_InsertCall(
@@ -478,7 +530,7 @@ VOID Test_Instruction(INS ins, void*)
 			);
 		}
 
-		if (rangesCounter && iter->second == addr)
+		if (rangesCounter && iter->second == addr - base)
 			rangesCounter--;
 	}
 
