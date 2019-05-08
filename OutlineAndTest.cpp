@@ -17,12 +17,14 @@ struct InstructionInfo
 
 struct ReadInfo
 {
-	INT32 ReadAddress;
+	ADDRINT ReadAddress;
+	ADDRINT Offset;
 	map<string, REG>::iterator RegisterPointer;
 };
 
 struct DataFromMemory
 {
+	ADDRINT Offset;
 	ADDRINT ReadAddr;
 	UINT32 IntVal;
 	string StrVal;
@@ -30,9 +32,8 @@ struct DataFromMemory
 	string RefStrVal;
 };
 
-// Из-за того, что map, нельзя читать два адреса на одной инструкции
-typedef map<ADDRINT, vector<ReadInfo>>				DataToRead;
-typedef map<ADDRINT, vector<DataFromMemory>>		ReadData;
+typedef map<string, vector<ReadInfo>>				DataToRead;
+typedef map<string, vector<DataFromMemory>>			ReadData;
 typedef map<string, vector<string>>					RoutinesToTest;
 typedef map<string, vector<pair<ADDRINT, ADDRINT>>> RangesToTest;
 
@@ -76,8 +77,6 @@ DataToRead toRead;
 
 map<string, REG> regsRef;
 
-//vector<DataFromMemory> DataFromMemoryVec;
-
 ReadData readData;
 
 /* R O U T I N E S */
@@ -116,11 +115,18 @@ VOID Outline_Fini(INT32 exitCode, void*)
 	OatFout.close();
 }
 
-VOID ParseRead(string line, ADDRINT &insAddr, INT32 &readAddr, map<string, REG>::iterator &iter)
+VOID ParseRead(string line, string &imgName, ADDRINT &insAddr, INT32 &readAddr, map<string, REG>::iterator &iter)
 {
 	UINT32 i = 0;
-	for (; i < line.length() && line[i] != ' '; i++){}
-	if (i < line.length())
+	i = line.find(' ');
+	if (i == string::npos)
+		return;
+
+	imgName = line.substr(0, i);
+	line = line.substr(i + 1);
+	i = line.find(' ');
+	
+	if (i != string::npos)
 	{
 		string tmp = line.substr(0, i);
 		insAddr = strtoul(tmp.c_str(), nullptr, 16);
@@ -261,6 +267,7 @@ BOOL Test_LoadList(string path)
 		}
 		else if (flags == 0x03)
 		{
+			// make it static
 			if (regsRef.empty())
 			{
 				regsRef.insert(make_pair("eax", REG_EAX));
@@ -275,23 +282,25 @@ BOOL Test_LoadList(string path)
 
 			ADDRINT insAddr = 0; 
 			INT32 readAddr = 0;
+			string imgName = "";
 			map<string, REG>::iterator iter;
-			ParseRead(line, insAddr, readAddr, iter);
+			ParseRead(line, imgName, insAddr, readAddr, iter);
 			if (insAddr)
 			{
 				ReadInfo ri;
 				ri.ReadAddress = readAddr;
 				ri.RegisterPointer = iter;
-				DataToRead::iterator foundAddr = toRead.find(insAddr);
-				if (foundAddr == toRead.end())
+				ri.Offset = insAddr;
+				DataToRead::iterator foundImg = toRead.find(imgName);
+				if (foundImg == toRead.end())
 				{
 					vector<ReadInfo> vec;
 					vec.push_back(ri);
-					toRead.insert(make_pair(insAddr, vec));
+					toRead.insert(make_pair(imgName, vec));
 				}
 				else
 				{
-					foundAddr->second.push_back(ri);
+					foundImg->second.push_back(ri);
 				}
 			}
 		}
@@ -320,7 +329,7 @@ VOID Test_Fini(INT32 exitCode, void*)
 	}
 	for (RangesToTest::iterator iter = rangesToTest.begin(); iter != rangesToTest.end(); iter++)
 	{
-		OatFout << "[IMAGE]" << endl << iter->first << endl;
+		OatFout << "[IMAGE]" << endl << iter->first << endl << endl;
 		for (UINT32 i = 0; i < iter->second.size(); i++)
 		{
 			OatFout << "[RANGE]" << "\t" << hexstr(iter->second.at(i).first) << ": " << hexstr(iter->second.at(i).second) << endl;
@@ -339,10 +348,11 @@ VOID Test_Fini(INT32 exitCode, void*)
 		OatFout << "[READ FROM MEMORY]" << endl;
 		for (ReadData::iterator rd = readData.begin(); rd != readData.end(); rd++)
 		{
-			OatFout << "Instruction Address: " << hexstr(rd->first) << endl;
+			OatFout << "Routine: " << rd->first << endl;
 			for (UINT32 index = 0; index < rd->second.size(); index++)
 			{
-				OatFout << "\n\tAddress:\t" << hexstr(rd->second.at(index).ReadAddr) << endl;
+				OatFout << "\n\tOffset:\t" << hexstr(rd->second.at(index).Offset) << endl;
+				OatFout << "\tAddress:\t" << hexstr(rd->second.at(index).ReadAddr) << endl;
 				OatFout << "\tInteger:\t" << hexstr(rd->second.at(index).IntVal) << endl;
 				OatFout << "\tString:\t" << rd->second.at(index).StrVal << endl;
 				
@@ -451,7 +461,7 @@ VOID ReadStringFromAddress(ADDRINT *from, string &val)
 	}
 }
 
-VOID ReadFromAddress(ADDRINT at, ADDRINT *from)
+VOID ReadFromAddress(vector<DataFromMemory> *vec, ADDRINT *from)
 {
 	UINT32 intVal = 0;
 	ADDRINT *readAddr = from;
@@ -477,19 +487,19 @@ VOID ReadFromAddress(ADDRINT at, ADDRINT *from)
 	dfm.RefIntVal = refIntVal;
 	dfm.RefStrVal = refStrVal;
 
-	readData[at].push_back(dfm);
+	vec->push_back(dfm);
 }
 
-VOID FromMemoryHandler(ADDRINT addr, ADDRINT readAddr)
+VOID FromMemoryHandler(vector<DataFromMemory> *vec, ADDRINT readAddr)
 {
 	ADDRINT *readAddrPtr = reinterpret_cast<ADDRINT*>(readAddr);
-	ReadFromAddress(addr, readAddrPtr);
+	ReadFromAddress(vec, readAddrPtr);
 }
 
-VOID ReadWithRegHandler(ADDRINT addr, UINT32 offset, REG reg)
+VOID ReadWithRegHandler(vector<DataFromMemory> *vec, UINT32 offset, REG reg)
 {
 	ADDRINT *readAddr = reinterpret_cast<ADDRINT*> (reg + static_cast<INT32>(offset));
-	ReadFromAddress(addr, readAddr);
+	ReadFromAddress(vec, readAddr);
 }
 
 VOID Test_Instruction(INS ins, void*)
@@ -503,45 +513,48 @@ VOID Test_Instruction(INS ins, void*)
 		return;
 
 	IMG img = SEC_Img(RTN_Sec(rtn));
-	RangesToTest::iterator im = rangesToTest.find(IMG_Name(img));
-	if (im == rangesToTest.end())
-		return;
-
+	string imgName = IMG_Name(img);
 	ADDRINT base = IMG_LowAddress(img);
-	for(vector<pair<ADDRINT, ADDRINT>>::iterator iter = im->second.begin(); iter != im->second.end(); iter++)
+	addr -= base;
+	RangesToTest::iterator im = rangesToTest.find(imgName);
+
+	if (im != rangesToTest.end())
 	{
-		if (iter->first == addr - base)
-			rangesCounter++;
-
-		if (rangesCounter)
+		for (vector<pair<ADDRINT, ADDRINT>>::iterator iter = im->second.begin(); iter != im->second.end(); iter++)
 		{
-			InstructionInfo insInfo;
-			insInfo.Address = addr - base;
-			insInfo.Disassembled = INS_Disassemble(ins);
-			insInfo.VisitsCount = 0;
-			insInfo.base = base;
-			insInRanges.push_back(insInfo);
+			if (iter->first == addr)
+				rangesCounter++;
 
-			INS_InsertCall(
-				ins,
-				IPOINT_BEFORE, (AFUNPTR)RangeInsHandler,
-				IARG_UINT32, insInRanges.size() - 1,
-				IARG_END
-			);
+			if (rangesCounter)
+			{
+				InstructionInfo insInfo;
+				insInfo.Address = addr;
+				insInfo.Disassembled = INS_Disassemble(ins);
+				insInfo.VisitsCount = 0;
+				insInfo.base = base;
+				insInRanges.push_back(insInfo);
+
+				INS_InsertCall(
+					ins,
+					IPOINT_BEFORE, (AFUNPTR)RangeInsHandler,
+					IARG_UINT32, insInRanges.size() - 1,
+					IARG_END
+				);
+			}
+
+			if (rangesCounter && iter->second == addr)
+				rangesCounter--;
 		}
-
-		if (rangesCounter && iter->second == addr - base)
-			rangesCounter--;
 	}
-
+	
 	// Read part
 
-	DataToRead::iterator iter = toRead.find(addr);
+	DataToRead::iterator iter = toRead.find(imgName);
 	if (iter != toRead.end())
 	{
-		ReadData::iterator iter1 = readData.find(addr);
+		ReadData::iterator iter1 = readData.find(imgName);
 		if (iter1 == readData.end())
-			readData.insert(make_pair(addr, vector<DataFromMemory>()));
+			readData.insert(make_pair(imgName, vector<DataFromMemory>()));
 
 		for (vector<ReadInfo>::iterator ri = iter->second.begin(); ri != iter->second.end(); ri++)
 		{
@@ -550,8 +563,8 @@ VOID Test_Instruction(INS ins, void*)
 				INS_InsertCall(
 					ins,
 					IPOINT_BEFORE, (AFUNPTR)ReadWithRegHandler,
-					IARG_ADDRINT, addr,
-					IARG_UINT32, static_cast<UINT32>(ri->ReadAddress),
+					IARG_PTR, &readData[imgName],
+					IARG_UINT32, static_cast<ADDRINT>(ri->ReadAddress),
 					IARG_REG_VALUE, ri->RegisterPointer->second,
 					IARG_END
 				);
