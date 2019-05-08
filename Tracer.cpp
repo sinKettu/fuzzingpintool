@@ -14,6 +14,9 @@ vector<string> trcImages;
 // Visited images
 vector<string> images;
 
+// Base addresses of images
+map<string, ADDRINT> imageBases;
+
 // Bbl visits counter (related to images)
 BblCounter bblCounter;
 
@@ -57,20 +60,25 @@ VOID Tracer_Trace(TRACE trc, void*)
 
 	vector<string>::iterator iter = find(images.begin(), images.end(), name);
 	UINT32 index = 0;
+	ADDRINT base = 0;
 	if (iter == images.end())
 	{
 		images.push_back(name);
 		map<ADDRINT, UINT32> tmp;
 		bblCounter.push_back(tmp);
+		index = bblCounter.size() - 1;
+		base = IMG_LowAddress(img);
+		imageBases.insert(make_pair(name, base));
 	}
 	else
 	{
 		index = iter - images.begin();
+		base = imageBases[*iter];
 	}
 
 	for (BBL bbl = TRACE_BblHead(trc); BBL_Valid(bbl); bbl = BBL_Next(bbl))
 	{
-		ADDRINT addr = INS_Address(BBL_InsHead(bbl));
+		ADDRINT addr = INS_Address(BBL_InsHead(bbl)) - base;
 		bblCounter.at(index).insert(make_pair(addr, 0));
 
 		BBL_InsertCall(
@@ -88,9 +96,10 @@ VOID Tracer_Fini(INT32 code, void*)
 	if (!images.empty())
 	{
 		TrcFout.open("outdata.txt", ios::app);
+		TrcFout << "[TRACE]" << endl;
 		for (UINT32 i = 0; i < images.size(); i++)
 		{
-			TrcFout << images.at(i) << endl;
+			TrcFout << "[IMAGE]\t" << images.at(i) << "\t" << hexstr(imageBases[images.at(i)]) << endl;
 			for (map<ADDRINT, UINT32>::iterator iter = bblCounter.at(i).begin(); iter != bblCounter.at(i).end(); iter++)
 			{
 				TrcFout << "\t" << hexstr(iter->first) << ": " << iter->second << endl;
