@@ -1,21 +1,24 @@
 # List of routines to test
 [ROUTINES]
-# rtn1
-# rtn2
+# format: [path to image] [routine name]
+# path\to\dll\or\application.exe rtn1
+# path\to\dll\or\application.exe rtn2
 
 # List of instructions ranges to test (addresses in hex).
 [RANGE]
-# 06ae34 06aedf
+# format: [path to image] [begin address offset] [end address offset]
+# path\to\dll\or\application.exe 0x1000 0x1200
 
 # List of instructions and memory pointers to show
 [READ]
-# 06af59 eax		# Only with lower case letters!
-# 06abcd ebp-0x1  	# Without spaces. ONLY "-" and "+"
-# 06dcba 0x34890a	# In HEX
+# format: [path to image] [address offset] [address to read]
+# path\to\dll\or\application.exe 0x1000 eax			# Only with lower case letters!
+# path\to\dll\or\application.exe 0x1200 ebp-0x1  	# Without spaces. ONLY "-" and "+"
+# path\to\dll\or\application.exe 0x1230 0x34890a	# In HEX
 
 # List of instructions and registers to show values (eax, ebx, ecx, edx, esi, edi, ebp, esp)
 # NOT RELEASED
 [REGS]
 # 06abcd eax
 # 06adef eax ebx esi
-# 0611bb ctxt 		# all
+# 0611bb ctxt 			# all
