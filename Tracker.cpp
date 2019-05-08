@@ -208,14 +208,14 @@ VOID Tracker_Fini(INT32 exitCode, void*)
 	TrackerFout.close();
 }
 
-VOID ReadCharHandle(ADDRINT rAddr, ADDRINT insAddr, string* rtnName, string* disasm, string *imgName)
+VOID ReadCharHandle(ADDRINT rAddr, ADDRINT insAddr, string* rtnName, string* disasm, string *imgName, ADDRINT imgBase)
 {
 	UINT8 val = static_cast<UINT8>(DEREFERENCED(rAddr));
 	vector<UINT8>::iterator veci = find(charsToTrack.begin(), charsToTrack.end(), val);
 	if (veci != charsToTrack.end() && !charsImgs[veci - charsToTrack.begin()].compare(*imgName))
 	{
 		FoundChars::iterator iter = foundChars.find(val);
-		string tmpStr = *rtnName + " : " + hexstr(insAddr) + " : " + *disasm;
+		string tmpStr = *rtnName + " : " + hexstr(imgBase) + " : " + hexstr(insAddr) + " : " + *disasm;
 		if (iter == foundChars.end())
 		{
 			vector<string> tmpVec;
@@ -233,7 +233,7 @@ VOID ReadCharHandle(ADDRINT rAddr, ADDRINT insAddr, string* rtnName, string* dis
 	delete disasm;
 }
 
-VOID ReadStrHandle(ADDRINT rAddr, ADDRINT insAddr, string *name, string *disasm, string *imgName)
+VOID ReadStrHandle(ADDRINT rAddr, ADDRINT insAddr, string *name, string *disasm, string *imgName, ADDRINT imgBase)
 {
 	ADDRINT rrAddr = 0;
 	PIN_SafeCopy(&rrAddr, reinterpret_cast<ADDRINT*>(rAddr), 4);
@@ -257,7 +257,7 @@ VOID ReadStrHandle(ADDRINT rAddr, ADDRINT insAddr, string *name, string *disasm,
 			!stringImgs[str - stringsToTrack.begin()].compare(*imgName))
 		{
 			FoundStrings::iterator iter = foundStrings.find(*str);
-			string tmpStr = *name + " : " + hexstr(insAddr) + " : " + *disasm;
+			string tmpStr = *name + " : " + hexstr(imgBase) + " : " + hexstr(insAddr) + " : " + *disasm;
 
 			if (iter == foundStrings.end())
 			{
@@ -282,62 +282,48 @@ VOID ReadStrHandle(ADDRINT rAddr, ADDRINT insAddr, string *name, string *disasm,
 
 VOID Tracker_Instruction(INS ins, void*)
 {
+	RTN rtn = INS_Rtn(ins);
+	if (!RTN_Valid(rtn))
+		return;
+
+	IMG img = SEC_Img(RTN_Sec(rtn));
+	ADDRINT base = IMG_LowAddress(img);
 	if (!charsToTrack.empty() &&  INS_IsMemoryRead(ins) && INS_MemoryReadSize(ins) == 1)
 	{
-		RTN rtn = INS_Rtn(ins);
-		if (RTN_Valid(rtn))
-		{
-			string *imgName = const_cast<string*>(
-				&IMG_Name(
-					SEC_Img(
-						RTN_Sec(rtn)
-					)
-				)
-				);
+		string *imgName = const_cast<string*>(&IMG_Name(img));
+		if (find(charsImgs.begin(), charsImgs.end(), *imgName) == charsImgs.end())
+			return;
 
-			if (find(charsImgs.begin(), charsImgs.end(), *imgName) == charsImgs.end())
-				return;
-
-			string *name = const_cast<string*>(&RTN_Name(rtn));
-			INS_InsertCall(
-				ins,
-				IPOINT_BEFORE, (AFUNPTR)ReadCharHandle,
-				IARG_MEMORYREAD_EA,
-				IARG_ADDRINT, INS_Address(ins),
-				IARG_PTR, name,
-				IARG_PTR, new string(INS_Disassemble(ins)),
-				IARG_PTR, imgName,
-				IARG_END
+		string *name = const_cast<string*>(&RTN_Name(rtn));
+		INS_InsertCall(
+			ins,
+			IPOINT_BEFORE, (AFUNPTR)ReadCharHandle,
+			IARG_MEMORYREAD_EA,
+			IARG_ADDRINT,	INS_Address(ins) - base,
+			IARG_PTR,		name,
+			IARG_PTR,		new string(INS_Disassemble(ins)),
+			IARG_PTR,		imgName,
+			IARG_ADDRINT,	base,
+			IARG_END
 			);
-		}
 	}
 	if (!stringsToTrack.empty() && INS_IsMemoryRead(ins) && INS_MemoryReadSize(ins) == 4)
 	{
-		RTN rtn = INS_Rtn(ins);
-		if (RTN_Valid(rtn))
-		{
-			string *imgName = const_cast<string*>(
-				&IMG_Name(
-					SEC_Img(
-						RTN_Sec(rtn)
-					)
-				)
-				);
+		string *imgName = const_cast<string*>(&IMG_Name(img));
+		if (find(stringImgs.begin(), stringImgs.end(), *imgName) == stringImgs.end())
+			return;
 
-			if (find(stringImgs.begin(), stringImgs.end(), *imgName) == stringImgs.end())
-				return;
-
-			string *name = const_cast<string*>(&RTN_Name(rtn));
-			INS_InsertCall(
-				ins,
-				IPOINT_BEFORE, (AFUNPTR)ReadStrHandle,
-				IARG_MEMORYREAD_EA,
-				IARG_ADDRINT, INS_Address(ins),
-				IARG_PTR,	  name,
-				IARG_PTR,	  new string(INS_Disassemble(ins)),
-				IARG_PTR,	  imgName,
-				IARG_END
-			);
-		}
+		string *name = const_cast<string*>(&RTN_Name(rtn));
+		INS_InsertCall(
+			ins,
+			IPOINT_BEFORE, (AFUNPTR)ReadStrHandle,
+			IARG_MEMORYREAD_EA,
+			IARG_ADDRINT, INS_Address(ins) - base,
+			IARG_PTR,	  name,
+			IARG_PTR,	  new string(INS_Disassemble(ins)),
+			IARG_PTR,	  imgName,
+			IARG_ADDRINT, base,
+			IARG_END
+		);
 	}
 }
