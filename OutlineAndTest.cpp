@@ -337,7 +337,11 @@ VOID Test_Fini(INT32 exitCode, void*)
 			for (UINT32 j = 0; j < insInRanges.size(); j++)
 			{
 				if (insInRanges.at(j).Address >= iter->second.at(i).first && insInRanges.at(j).Address <= iter->second.at(i).second)
-					OatFout << hexstr(insInRanges.at(j).base) << ": " << hexstr(insInRanges.at(j).Address) << "\t" << insInRanges.at(j).Disassembled << endl;
+				{
+					OatFout << hexstr(insInRanges.at(j).base) << ": " << hexstr(insInRanges.at(j).Address) << "\t" << insInRanges.at(j).Disassembled;
+					OatFout << "\t[" << insInRanges.at(j).VisitsCount << "]\n";
+				}
+
 			}
 
 		}
@@ -461,7 +465,7 @@ VOID ReadStringFromAddress(ADDRINT *from, string &val)
 	}
 }
 
-VOID ReadFromAddress(vector<DataFromMemory> *vec, ADDRINT *from)
+VOID ReadFromAddress(vector<DataFromMemory> *vec, ADDRINT *from, ADDRINT offset)
 {
 	UINT32 intVal = 0;
 	ADDRINT *readAddr = from;
@@ -486,20 +490,21 @@ VOID ReadFromAddress(vector<DataFromMemory> *vec, ADDRINT *from)
 	dfm.StrVal = strVal;
 	dfm.RefIntVal = refIntVal;
 	dfm.RefStrVal = refStrVal;
+	dfm.Offset = offset;
 
 	vec->push_back(dfm);
 }
 
-VOID FromMemoryHandler(vector<DataFromMemory> *vec, ADDRINT readAddr)
+VOID FromMemoryHandler(vector<DataFromMemory> *vec, ADDRINT readAddr, ADDRINT offset)
 {
 	ADDRINT *readAddrPtr = reinterpret_cast<ADDRINT*>(readAddr);
-	ReadFromAddress(vec, readAddrPtr);
+	ReadFromAddress(vec, readAddrPtr, offset);
 }
 
-VOID ReadWithRegHandler(vector<DataFromMemory> *vec, UINT32 offset, REG reg)
+VOID ReadWithRegHandler(vector<DataFromMemory> *vec, UINT32 offset, REG reg, ADDRINT addrOffset)
 {
 	ADDRINT *readAddr = reinterpret_cast<ADDRINT*> (reg + static_cast<INT32>(offset));
-	ReadFromAddress(vec, readAddr);
+	ReadFromAddress(vec, readAddr, addrOffset);
 }
 
 VOID Test_Instruction(INS ins, void*)
@@ -544,6 +549,8 @@ VOID Test_Instruction(INS ins, void*)
 
 			if (rangesCounter && iter->second == addr)
 				rangesCounter--;
+
+			break;
 		}
 	}
 	
@@ -558,6 +565,9 @@ VOID Test_Instruction(INS ins, void*)
 
 		for (vector<ReadInfo>::iterator ri = iter->second.begin(); ri != iter->second.end(); ri++)
 		{
+			if (ri->Offset != addr)
+				continue;
+
 			if (ri->RegisterPointer != regsRef.end())
 			{
 				INS_InsertCall(
@@ -566,6 +576,7 @@ VOID Test_Instruction(INS ins, void*)
 					IARG_PTR, &readData[imgName],
 					IARG_UINT32, static_cast<ADDRINT>(ri->ReadAddress),
 					IARG_REG_VALUE, ri->RegisterPointer->second,
+					IARG_ADDRINT, addr,
 					IARG_END
 				);
 			}
@@ -576,6 +587,7 @@ VOID Test_Instruction(INS ins, void*)
 					IPOINT_BEFORE, (AFUNPTR)FromMemoryHandler,
 					IARG_ADDRINT, addr,
 					IARG_ADDRINT, static_cast<ADDRINT>(ri->ReadAddress),
+					IARG_ADDRINT, addr,
 					IARG_END
 				);
 			}
