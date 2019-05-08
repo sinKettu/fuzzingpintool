@@ -73,7 +73,7 @@ BOOL Fuzzer_LoadList(string path)
 	while (true)
 	{
 		getline(fin, line);
-		if (line[0] == '#')
+		if (line[0] == '#' || line.empty())
 			continue;
 
 		if (!line.compare("[ROUTINE]"))
@@ -139,12 +139,20 @@ BOOL Fuzzer_LoadList(string path)
 
 VOID CheckIfFirst(UINT32 id, ADDRINT addr, CONTEXT ctxt)
 {
+	cout << "00000" << endl;
+	//
+		UINT32 eax = PIN_GetContextReg(&ctxt, REG_EAX);
+		cout << "!!! " << eax << endl;
+		//
 	if (phase == PREPARATORY_PHASE)
 	{
 		if (fuzzedCodeId != 0 || savedRtnCtxt.find(id) != savedRtnCtxt.end())
 			return;
-
-		savedRtnCtxt.insert(make_pair(id, ctxt));
+		
+		CONTEXT tmp;
+		PIN_SaveContext(&ctxt, &tmp);
+		
+		savedRtnCtxt.insert(make_pair(id, tmp));
 		rtnEntryAddress.insert(make_pair(id, addr));
 		fuzzedCodeId = id;
 	}
@@ -322,6 +330,7 @@ VOID Fuzzer_Image(IMG img, void*)
 			vector<string>::iterator ri = find(ii->second.begin(), ii->second.end(), rtnName);
 			if (ri != ii->second.end())
 			{
+				RTN_Open(rtn);
 				UINT32 id = RTN_Id(rtn);
 				savedRtnData.insert(make_pair(id, vector<MemoryData>()));
 
@@ -365,7 +374,7 @@ VOID Fuzzer_Image(IMG img, void*)
 						);
 					}
 				}
-
+/*
 				for (BBL bbl = RTN_BblHead(rtn); BBL_Valid(bbl); bbl = BBL_Next(bbl))
 				{
 					ADDRINT bblHead = INS_Address(BBL_InsHead(bbl));
@@ -379,7 +388,9 @@ VOID Fuzzer_Image(IMG img, void*)
 						IARG_UINT32, id,
 						IARG_END
 					);
-				}
+				}*/
+
+				RTN_Close(rtn);
 			}
 		}
 	}
@@ -387,5 +398,37 @@ VOID Fuzzer_Image(IMG img, void*)
 
 VOID Fuzzer_Trace(TRACE trc, void*)
 {
-	// pass
+	RTN rtn = TRACE_Rtn(trc);
+	if (!RTN_Valid(rtn))
+		return;
+
+	RTN_Open(rtn);
+	IMG img = SEC_Img(RTN_Sec(rtn));
+	string rtnName = RTN_Name(rtn);
+	string imgName = IMG_Name(img);
+	UINT32 id = RTN_Id(rtn);
+	RTN_Close(rtn);
+
+	RoutinesToFuzz::iterator ii = routinesToFuzz.find(imgName);
+	if (ii == routinesToFuzz.end())
+		return;
+
+	vector<string>::iterator ri = find(ii->second.begin(), ii->second.end(), rtnName);
+	if (ri == ii->second.end())
+		return;
+
+	for (BBL bbl = TRACE_BblHead(trc); BBL_Valid(bbl); bbl = BBL_Next(bbl))
+	{
+		ADDRINT bblHead = INS_Address(BBL_InsHead(bbl));
+		lastTrace.insert(make_pair(bblHead, 0));
+		currentTrace.insert(make_pair(bblHead, 0));
+
+		BBL_InsertCall(
+			bbl,
+			IPOINT_BEFORE, (AFUNPTR)FuzzerBblCounter,
+			IARG_ADDRINT, bblHead,
+			IARG_UINT32, id,
+			IARG_END
+		);
+	}
 }
