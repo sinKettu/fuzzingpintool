@@ -523,6 +523,7 @@ VOID Test_Instruction(INS ins, void*)
 	addr -= base;
 	RangesToTest::iterator im = rangesToTest.find(imgName);
 
+	BOOL done = false;
 	if (im != rangesToTest.end())
 	{
 		for (vector<pair<ADDRINT, ADDRINT>>::iterator iter = im->second.begin(); iter != im->second.end(); iter++)
@@ -530,8 +531,10 @@ VOID Test_Instruction(INS ins, void*)
 			if (iter->first == addr)
 				rangesCounter++;
 
-			if (rangesCounter)
+			if (rangesCounter && !done)
 			{
+				done = true;
+
 				InstructionInfo insInfo;
 				insInfo.Address = addr;
 				insInfo.Disassembled = INS_Disassemble(ins);
@@ -545,12 +548,11 @@ VOID Test_Instruction(INS ins, void*)
 					IARG_UINT32, insInRanges.size() - 1,
 					IARG_END
 				);
+
 			}
 
 			if (rangesCounter && iter->second == addr)
 				rangesCounter--;
-
-			break;
 		}
 	}
 	
