@@ -18,7 +18,7 @@ typedef map<UINT32, vector<MemoryData>>				SavedRoutineData;
 
 /* GLOBALS */
 
-const REG regArray[7] = { REG_EAX, REG_EBX, REG_ECX, REG_EDX, REG_ESI, REG_EDI, REG_EBP };
+REG regArray[7] = { REG_EAX, REG_EBX, REG_ECX, REG_EDX, REG_ESI, REG_EDI, REG_EBP };
 
 // Given routines to fuzz
 RoutinesToFuzz routinesToFuzz;
@@ -137,21 +137,15 @@ BOOL Fuzzer_LoadList(string path)
 	return true;
 }
 
-VOID CheckIfFirst(UINT32 id, ADDRINT addr, CONTEXT ctxt)
+VOID CheckIfFirst(UINT32 id, ADDRINT addr, CONTEXT *ctxt)
 {
-	cout << "00000" << endl;
-	//
-		UINT32 eax = PIN_GetContextReg(&ctxt, REG_EAX);
-		cout << "!!! " << eax << endl;
-		//
 	if (phase == PREPARATORY_PHASE)
 	{
 		if (fuzzedCodeId != 0 || savedRtnCtxt.find(id) != savedRtnCtxt.end())
 			return;
 		
 		CONTEXT tmp;
-		PIN_SaveContext(&ctxt, &tmp);
-		
+		PIN_SaveContext(ctxt, &tmp);
 		savedRtnCtxt.insert(make_pair(id, tmp));
 		rtnEntryAddress.insert(make_pair(id, addr));
 		fuzzedCodeId = id;
@@ -194,12 +188,13 @@ VOID NextMutation(UINT32 id)
 	UINT32 choice;
 	if (CompareTraces())
 	{
+		cout << "!1" << endl;
 		unsuccessfulAttempts.clear();
 		unsuccessfulAttempts = vector<UINT32>(mutationStack);
 		mutationsCounter = ATTEMPTS_COUNT;
-		choice = rand() % (savedRtnData[id].size() + 7);
+		choice = rand() % (savedRtnData[id].size() + 6);
 		while (find(unsuccessfulAttempts.begin(), unsuccessfulAttempts.end(), choice) != unsuccessfulAttempts.end())
-			choice = rand() % (savedRtnData[id].size() + 7);
+			choice = rand() % (savedRtnData[id].size() + 6);
 
 		mutationStack.push_back(choice);
 	}
@@ -207,29 +202,36 @@ VOID NextMutation(UINT32 id)
 	{
 		if (mutationsCounter == 0)
 		{
+			cout << "!2" << endl;
 			unsuccessfulAttempts.push_back(mutationStack.back());
-			if (mutationStack.size() == savedRtnData[id].size() + 7)
+			if (mutationStack.size() == savedRtnData[id].size() + 6)
 			{
+				cout << "!3" << endl;
 				unsuccessfulAttempts.clear();
 				mutationStack.pop_back();
 				unsuccessfulAttempts = vector<UINT32>(mutationStack);
 			}
 
-			choice = rand() % (savedRtnData[id].size() + 7);
+			choice = rand() % (savedRtnData[id].size() + 6);
 			while (find(unsuccessfulAttempts.begin(), unsuccessfulAttempts.end(), choice) != unsuccessfulAttempts.end())
-				choice = rand() % (savedRtnData[id].size() + 7);
+				choice = rand() % (savedRtnData[id].size() + 6);
 
 			mutationStack.back() = choice;
 			mutationsCounter = ATTEMPTS_COUNT;
 		}
 		else if (mutationStack.empty())
 		{
-			choice = rand() % (savedRtnData[id].size() + 7);
+			cout << "!4" << endl;
+			choice = rand() % (savedRtnData[id].size() + 6);
 			mutationStack.push_back(choice);
 			mutationsCounter = ATTEMPTS_COUNT;
 		}
 		else
+		{
+			cout << "!5" << endl;
 			mutationsCounter--;
+		}
+			
 	}
 
 	for (UINT32 i = 0; i < lastTrace.size(); i++)
@@ -237,7 +239,8 @@ VOID NextMutation(UINT32 id)
 		lastTrace[i] = currentTrace[i];
 		currentTrace[i] = 0;
 	}
-
+	cout << mutationStack.back() << endl;
+	cout << "!6" << endl;
 }
 
 VOID HandleRtnMemoryRead(UINT32 id, ADDRINT ea, UINT32 size)
@@ -262,6 +265,7 @@ VOID HandleRtnMemoryRead(UINT32 id, ADDRINT ea, UINT32 size)
 	{
 		// put memory mutations here
 		UINT32 choice = mutationStack.back() - 7;
+		// FAULT CRASH FUCK
 		if (choice >= 0 && savedRtnData[id].at(choice).Address == ea)
 			MutateMemoryVal(id, choice);
 
@@ -300,15 +304,15 @@ VOID HandleRtnRet(UINT32 id)
 	}
 }
 
-VOID FuzzerBblCounter(ADDRINT headIns, UINT32 id)
+VOID FuzzerBblCounter(UINT32 id, UINT32 *last, UINT32 *current)
 {
 	if (phase == PREPARATORY_PHASE && id == fuzzedCodeId)
 	{
-		lastTrace[headIns]++;
+		(*last)++;
 	}
 	else if (phase == FUZZING_PHASE && id == fuzzedCodeId)
 	{
-		currentTrace[headIns]++;
+		(*current)++;
 	}
 }
 
@@ -374,21 +378,6 @@ VOID Fuzzer_Image(IMG img, void*)
 						);
 					}
 				}
-/*
-				for (BBL bbl = RTN_BblHead(rtn); BBL_Valid(bbl); bbl = BBL_Next(bbl))
-				{
-					ADDRINT bblHead = INS_Address(BBL_InsHead(bbl));
-					lastTrace.insert(make_pair(bblHead, 0));
-					currentTrace.insert(make_pair(bblHead, 0));
-
-					BBL_InsertCall(
-						bbl,
-						IPOINT_BEFORE, (AFUNPTR)FuzzerBblCounter,
-						IARG_ADDRINT, bblHead,
-						IARG_UINT32, id,
-						IARG_END
-					);
-				}*/
 
 				RTN_Close(rtn);
 			}
@@ -426,9 +415,11 @@ VOID Fuzzer_Trace(TRACE trc, void*)
 		BBL_InsertCall(
 			bbl,
 			IPOINT_BEFORE, (AFUNPTR)FuzzerBblCounter,
-			IARG_ADDRINT, bblHead,
 			IARG_UINT32, id,
+			IARG_PTR, &lastTrace[bblHead],
+			IARG_PTR, &currentTrace[bblHead],
 			IARG_END
 		);
 	}
+
 }
