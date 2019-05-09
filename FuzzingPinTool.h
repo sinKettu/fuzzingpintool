@@ -17,6 +17,7 @@ VOID Fuzzer_Image(IMG img, void*);
 //VOID Fuzzer_Instrunction(INS ins, void*);
 VOID Fuzzer_Trace(TRACE trc, void*);
 BOOL Fuzzer_LoadList(string path);
+VOID Fuzzer_ExceptionHandler(THREADID threadIndex, CONTEXT_CHANGE_REASON reason, const CONTEXT *from, CONTEXT *to, INT32 info, void *);
 
 VOID Outline_Image(IMG img, void*);
 VOID Outline_Fini(INT32 exitCode, void*);

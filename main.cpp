@@ -21,6 +21,7 @@ int main(int argc, char *argv[])
 	}
 
 	PIN_SetSyntaxIntel();
+	PIN_AddContextChangeFunction(Fuzzer_ExceptionHandler, 0);
 	if (KnobOutline.Value())
 	{
 		IMG_AddInstrumentFunction(Outline_Image, 0);

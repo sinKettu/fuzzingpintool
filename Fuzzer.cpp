@@ -18,6 +18,8 @@ typedef map<UINT32, vector<MemoryData>>				SavedRoutineData;
 
 /* GLOBALS */
 
+ofstream FuzFout;
+
 REG regArray[7] = { REG_EAX, REG_EBX, REG_ECX, REG_EDX, REG_ESI, REG_EDI, REG_EBP };
 
 // Given routines to fuzz
@@ -183,64 +185,80 @@ BOOL CompareTraces()
 	return currentSum > lastSum;
 }
 
-VOID NextMutation(UINT32 id)
+VOID NextMutation(UINT32 id, BOOL exception=false)
 {
-	UINT32 choice;
-	if (CompareTraces())
+	if (!id && exception)
 	{
-		cout << "!1" << endl;
-		unsuccessfulAttempts.clear();
-		unsuccessfulAttempts = vector<UINT32>(mutationStack);
-		mutationsCounter = ATTEMPTS_COUNT;
-		choice = rand() % (savedRtnData[id].size() + 6);
+		id = fuzzedCodeId;
+		unsuccessfulAttempts.push_back(mutationStack.back());
+		UINT32 choice = rand() % (savedRtnData[id].size() + 6);
 		while (find(unsuccessfulAttempts.begin(), unsuccessfulAttempts.end(), choice) != unsuccessfulAttempts.end())
 			choice = rand() % (savedRtnData[id].size() + 6);
 
-		mutationStack.push_back(choice);
+		mutationStack.back() = choice;
+		mutationsCounter = ATTEMPTS_COUNT;
+
+		for (UINT32 i = 0; i < lastTrace.size(); i++)
+			currentTrace[i] = 0;
 	}
 	else
 	{
-		if (mutationsCounter == 0)
+		UINT32 choice;
+		if (CompareTraces())
 		{
-			cout << "!2" << endl;
-			unsuccessfulAttempts.push_back(mutationStack.back());
-			if (mutationStack.size() == savedRtnData[id].size() + 6)
-			{
-				cout << "!3" << endl;
-				unsuccessfulAttempts.clear();
-				mutationStack.pop_back();
-				unsuccessfulAttempts = vector<UINT32>(mutationStack);
-			}
-
+			cout << "!1" << endl;
+			unsuccessfulAttempts.clear();
+			unsuccessfulAttempts = vector<UINT32>(mutationStack);
+			mutationsCounter = ATTEMPTS_COUNT;
 			choice = rand() % (savedRtnData[id].size() + 6);
 			while (find(unsuccessfulAttempts.begin(), unsuccessfulAttempts.end(), choice) != unsuccessfulAttempts.end())
 				choice = rand() % (savedRtnData[id].size() + 6);
 
-			mutationStack.back() = choice;
-			mutationsCounter = ATTEMPTS_COUNT;
-		}
-		else if (mutationStack.empty())
-		{
-			cout << "!4" << endl;
-			choice = rand() % (savedRtnData[id].size() + 6);
 			mutationStack.push_back(choice);
-			mutationsCounter = ATTEMPTS_COUNT;
 		}
 		else
 		{
-			cout << "!5" << endl;
-			mutationsCounter--;
-		}
-			
-	}
+			if (mutationsCounter == 0)
+			{
+				cout << "!2" << endl;
+				unsuccessfulAttempts.push_back(mutationStack.back());
+				if (mutationStack.size() == savedRtnData[id].size() + 6)
+				{
+					cout << "!3" << endl;
+					unsuccessfulAttempts.clear();
+					mutationStack.pop_back();
+					unsuccessfulAttempts = vector<UINT32>(mutationStack);
+				}
 
-	for (UINT32 i = 0; i < lastTrace.size(); i++)
-	{
-		lastTrace[i] = currentTrace[i];
-		currentTrace[i] = 0;
+				choice = rand() % (savedRtnData[id].size() + 6);
+				while (find(unsuccessfulAttempts.begin(), unsuccessfulAttempts.end(), choice) != unsuccessfulAttempts.end())
+					choice = rand() % (savedRtnData[id].size() + 6);
+
+				mutationStack.back() = choice;
+				mutationsCounter = ATTEMPTS_COUNT;
+			}
+			else if (mutationStack.empty())
+			{
+				cout << "!4" << endl;
+				choice = rand() % (savedRtnData[id].size() + 6);
+				mutationStack.push_back(choice);
+				mutationsCounter = ATTEMPTS_COUNT;
+			}
+			else
+			{
+				cout << "!5" << endl;
+				mutationsCounter--;
+			}
+		}
+
+		for (UINT32 i = 0; i < lastTrace.size(); i++)
+		{
+			lastTrace[i] = currentTrace[i];
+			currentTrace[i] = 0;
+		}
+		cout << mutationStack.back() << endl;
+		cout << "!6" << endl;
 	}
-	cout << mutationStack.back() << endl;
-	cout << "!6" << endl;
 }
 
 VOID HandleRtnMemoryRead(UINT32 id, ADDRINT ea, UINT32 size)
@@ -422,4 +440,45 @@ VOID Fuzzer_Trace(TRACE trc, void*)
 		);
 	}
 
+}
+
+VOID Fuzzer_ExceptionHandler(THREADID threadIndex, CONTEXT_CHANGE_REASON reason, 
+							const CONTEXT *from, CONTEXT *to, INT32 info, void *)
+{
+	if (reason == CONTEXT_CHANGE_REASON_EXCEPTION)
+	{
+		cout << endl << "Windwos exception is catched" << endl;
+		cout << "Exception code: " << info << endl << endl;
+		cout << "Occured at " << mutationStack.back() + 1 << " mutated:" << endl;
+
+		if (phase == FUZZING_PHASE && fuzzedCodeId != 0)
+		{
+			cout << "1. EAX " << hexstr(PIN_GetContextReg(from, REG_EAX)) << endl;
+			cout << "2. EBX " << hexstr(PIN_GetContextReg(from, REG_EBX)) << endl;
+			cout << "3. ECX " << hexstr(PIN_GetContextReg(from, REG_ECX)) << endl;
+			cout << "4. EDX " << hexstr(PIN_GetContextReg(from, REG_EDX)) << endl;
+			cout << "5. ESI " << hexstr(PIN_GetContextReg(from, REG_ESI)) << endl;
+			cout << "6. EDI " << hexstr(PIN_GetContextReg(from, REG_EDI)) << endl;
+			cout << "7. ESP " << hexstr(PIN_GetContextReg(from, REG_EBP)) << endl;
+			cout << "(  EBP " << hexstr(PIN_GetContextReg(from, REG_EBP)) << ")" << endl;
+			for (UINT32 index = 0; index < savedRtnData[fuzzedCodeId].size(); index++)
+			{
+				cout << index + 8 << ". Address: " << hexstr(savedRtnData[fuzzedCodeId].at(index).Address) << "; ";
+				UINT32 val = 0;
+				ADDRINT *ea = reinterpret_cast<ADDRINT*>(savedRtnData[fuzzedCodeId].at(index).Address);
+				PIN_SafeCopy(&val, ea, savedRtnData[fuzzedCodeId].at(index).Size);
+				cout << "Value: " << hexstr(val) << endl;
+			}
+
+			NextMutation(0, true);
+			if (mutationStack.back() < 7)
+				MutateReg(mutationStack.back());
+
+			PIN_ExecuteAt(&replacingCtxt);
+		}
+		else
+		{
+			cout << "---" << endl;
+		}
+	}
 }
