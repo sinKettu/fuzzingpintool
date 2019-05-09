@@ -250,7 +250,6 @@ VOID NextMutation(UINT32 id, BOOL exception=false)
 			lastTrace[i] = currentTrace[i];
 			currentTrace[i] = 0;
 		}
-		cout << mutationStack.back() << endl;
 	}
 }
 
@@ -451,17 +450,17 @@ VOID Fuzzer_ExceptionHandler(THREADID threadIndex, CONTEXT_CHANGE_REASON reason,
 
 		if (phase == FUZZING_PHASE && fuzzedCodeId != 0)
 		{
-			cout << "1. EAX " << hexstr(PIN_GetContextReg(from, REG_EAX)) << endl;
-			cout << "2. EBX " << hexstr(PIN_GetContextReg(from, REG_EBX)) << endl;
-			cout << "3. ECX " << hexstr(PIN_GetContextReg(from, REG_ECX)) << endl;
-			cout << "4. EDX " << hexstr(PIN_GetContextReg(from, REG_EDX)) << endl;
-			cout << "5. ESI " << hexstr(PIN_GetContextReg(from, REG_ESI)) << endl;
-			cout << "6. EDI " << hexstr(PIN_GetContextReg(from, REG_EDI)) << endl;
-			cout << "7. EBP " << hexstr(PIN_GetContextReg(from, REG_EBP)) << endl;
-			cout << "(  ESP " << hexstr(PIN_GetContextReg(from, REG_ESP)) << "  )" << endl;
+			cout << "1.\tEAX " << hexstr(PIN_GetContextReg(from, REG_EAX)) << endl;
+			cout << "2.\tEBX " << hexstr(PIN_GetContextReg(from, REG_EBX)) << endl;
+			cout << "3.\tECX " << hexstr(PIN_GetContextReg(from, REG_ECX)) << endl;
+			cout << "4.\tEDX " << hexstr(PIN_GetContextReg(from, REG_EDX)) << endl;
+			cout << "5.\tESI " << hexstr(PIN_GetContextReg(from, REG_ESI)) << endl;
+			cout << "6.\tEDI " << hexstr(PIN_GetContextReg(from, REG_EDI)) << endl;
+			cout << "7.\tEBP " << hexstr(PIN_GetContextReg(from, REG_EBP)) << endl;
+			cout << "(\tESP " << hexstr(PIN_GetContextReg(from, REG_ESP)) << "  )" << endl;
 			for (UINT32 index = 0; index < savedRtnData[fuzzedCodeId].size(); index++)
 			{
-				cout << index + 8 << ". Address: " << hexstr(savedRtnData[fuzzedCodeId].at(index).Address) << "; ";
+				cout << index + 8 << ".\tAddress: " << hexstr(savedRtnData[fuzzedCodeId].at(index).Address) << "; ";
 				UINT32 val = 0;
 				ADDRINT *ea = reinterpret_cast<ADDRINT*>(savedRtnData[fuzzedCodeId].at(index).Address);
 				PIN_SafeCopy(&val, ea, savedRtnData[fuzzedCodeId].at(index).Size);
