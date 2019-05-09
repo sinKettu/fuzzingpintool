@@ -1,9 +1,9 @@
 #include "FuzzingPinTool.h"
 using namespace std;
 
-#define PREPARATORY_PHASE	0
-#define FUZZING_PHASE		1
-#define ATTEMPTS_COUNT		3
+#define PREPARATORY_PHASE			0
+#define FUZZING_PHASE				1
+#define ATTEMPTS_PER_VAL_COUNT		3
 
 struct MemoryData
 {
@@ -58,9 +58,13 @@ vector<UINT32> unsuccessfulAttempts;
 
 // Count of mutations per value
 // before you consider it a failure
-UINT8 mutationsCounter = ATTEMPTS_COUNT;
+UINT8 mutationsCounter = ATTEMPTS_PER_VAL_COUNT;
 
+// flag
 BOOL memoryMutated = false;
+
+// One attempt is one 'mutationStack' depletion
+UINT32 generalAttemptsCounter;
 
 /* ROUTINES */
 
@@ -199,7 +203,7 @@ VOID NextMutation(UINT32 id, BOOL exception=false)
 			choice = rand() % (add + 6);
 
 		mutationStack.back() = choice;
-		mutationsCounter = ATTEMPTS_COUNT;
+		mutationsCounter = ATTEMPTS_PER_VAL_COUNT;
 
 		for (UINT32 i = 0; i < lastTrace.size(); i++)
 			currentTrace[i] = 0;
@@ -210,7 +214,7 @@ VOID NextMutation(UINT32 id, BOOL exception=false)
 		{
 			unsuccessfulAttempts.clear();
 			unsuccessfulAttempts = vector<UINT32>(mutationStack);
-			mutationsCounter = ATTEMPTS_COUNT;
+			mutationsCounter = ATTEMPTS_PER_VAL_COUNT;
 			while (find(unsuccessfulAttempts.begin(), unsuccessfulAttempts.end(), choice) != unsuccessfulAttempts.end())
 				choice = rand() % (add + 6);
 
@@ -232,12 +236,13 @@ VOID NextMutation(UINT32 id, BOOL exception=false)
 					choice = rand() % (add + 6);
 
 				mutationStack.back() = choice;
-				mutationsCounter = ATTEMPTS_COUNT;
+				mutationsCounter = ATTEMPTS_PER_VAL_COUNT;
 			}
 			else if (mutationStack.empty())
 			{
+				generalAttemptsCounter--;
 				mutationStack.push_back(choice);
-				mutationsCounter = ATTEMPTS_COUNT;
+				mutationsCounter = ATTEMPTS_PER_VAL_COUNT;
 			}
 			else
 			{
@@ -295,6 +300,12 @@ VOID HandleRtnRet(UINT32 id)
 		if (rtnCtxt != savedRtnCtxt.end())
 		{
 			fuzzedCodeId = id;
+			phase = FUZZING_PHASE;
+			if (savedRtnData.find(id) == savedRtnData.end())
+				generalAttemptsCounter = 8;
+			else
+				generalAttemptsCounter = 7 + savedRtnData[id].size();
+
 			PIN_SaveContext(&rtnCtxt->second, &replacingCtxt);
 
 			// put context mutations here
@@ -303,11 +314,10 @@ VOID HandleRtnRet(UINT32 id)
 			if (mutationStack.back() < 7)
 				MutateReg(mutationStack.back());
 
-			phase = FUZZING_PHASE;
 			PIN_ExecuteAt(&replacingCtxt);
 		}
 	}
-	else if (phase == FUZZING_PHASE && id == fuzzedCodeId)
+	else if (phase == FUZZING_PHASE && id == fuzzedCodeId && generalAttemptsCounter)
 	{
 		// put context mutations here
 		memoryMutated = false;
@@ -316,6 +326,10 @@ VOID HandleRtnRet(UINT32 id)
 			MutateReg(mutationStack.back());
 
 		PIN_ExecuteAt(&replacingCtxt);
+	}
+	else if (!generalAttemptsCounter)
+	{
+		// Cancel fuzzing here
 	}
 }
 
