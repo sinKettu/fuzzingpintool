@@ -64,7 +64,7 @@ UINT8 mutationsCounter = ATTEMPTS_PER_VAL_COUNT;
 BOOL memoryMutated = false;
 
 // One attempt is one 'mutationStack' depletion
-UINT32 generalAttemptsCounter;
+UINT32 generalAttemptsCounter = 0;
 
 /* ROUTINES */
 
