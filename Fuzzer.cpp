@@ -60,6 +60,8 @@ vector<UINT32> unsuccessfulAttempts;
 // before you consider it a failure
 UINT8 mutationsCounter = ATTEMPTS_COUNT;
 
+BOOL memoryMutated = false;
+
 /* ROUTINES */
 
 BOOL Fuzzer_LoadList(string path)
@@ -273,18 +275,18 @@ VOID HandleRtnMemoryRead(UINT32 id, ADDRINT ea, UINT32 size)
 		tmp.Address = ea;
 		tmp.Value = val;
 		tmp.Size = size;
-
-		savedRtnData[id].push_back(tmp);
+		if (find(savedRtnData[id].begin(), savedRtnData[id].end(), tmp) == savedRtnData[id].end())
+			savedRtnData[id].push_back(tmp);
 	}
 	else if (phase == FUZZING_PHASE && id == fuzzedCodeId)
 	{
 		// put memory mutations here
 		UINT32 choice = mutationStack.back() - 7;
-		// FAULT CRASH FUCK
-		if (choice >= 0 && savedRtnData[id].at(choice).Address == ea)
+		if (choice >= 0 && savedRtnData[id].at(choice).Address == ea && !memoryMutated)
+		{
+			memoryMutated = true;
 			MutateMemoryVal(id, choice);
-
-		// make conditions to end fuzzing
+		}
 	}
 }
 
@@ -311,6 +313,7 @@ VOID HandleRtnRet(UINT32 id)
 	else if (phase == FUZZING_PHASE && id == fuzzedCodeId)
 	{
 		// put context mutations here
+		memoryMutated = false;
 		NextMutation(id);
 		if (mutationStack.back() < 7)
 			MutateReg(mutationStack.back());
