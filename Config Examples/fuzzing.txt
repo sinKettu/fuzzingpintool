@@ -1,4 +1,3 @@
-# If fault will happen, pin won't restart
 # Signal about routines to fuzz
 [ROUTINE]
 # format is [full name of image] [routine name]
