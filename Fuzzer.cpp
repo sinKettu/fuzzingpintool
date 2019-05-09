@@ -267,6 +267,10 @@ VOID HandleRtnMemoryRead(UINT32 id, ADDRINT ea, UINT32 size)
 		if (size > sizeof(ADDRINT))
 			return;
 
+		for (vector<MemoryData>::iterator iter = savedRtnData[id].begin(); iter != savedRtnData[id].end(); iter++)
+			if (iter->Address == ea)
+				return;
+
 		ADDRINT val = 0;
 		ADDRINT *ptr = reinterpret_cast<ADDRINT *>(ea);
 		PIN_SafeCopy(&val, ptr, size);
@@ -275,8 +279,8 @@ VOID HandleRtnMemoryRead(UINT32 id, ADDRINT ea, UINT32 size)
 		tmp.Address = ea;
 		tmp.Value = val;
 		tmp.Size = size;
-		if (find(savedRtnData[id].begin(), savedRtnData[id].end(), tmp) == savedRtnData[id].end())
-			savedRtnData[id].push_back(tmp);
+
+		savedRtnData[id].push_back(tmp);
 	}
 	else if (phase == FUZZING_PHASE && id == fuzzedCodeId)
 	{
