@@ -187,13 +187,14 @@ BOOL CompareTraces()
 
 VOID NextMutation(UINT32 id, BOOL exception=false)
 {
+	UINT32 add = savedRtnData.find(id) == savedRtnData.end() ? 0 : savedRtnData[id].size();
+	UINT32 choice = rand() % (add + 6);
 	if (!id && exception)
 	{
 		id = fuzzedCodeId;
 		unsuccessfulAttempts.push_back(mutationStack.back());
-		UINT32 choice = rand() % (savedRtnData[id].size() + 6);
 		while (find(unsuccessfulAttempts.begin(), unsuccessfulAttempts.end(), choice) != unsuccessfulAttempts.end())
-			choice = rand() % (savedRtnData[id].size() + 6);
+			choice = rand() % (add + 6);
 
 		mutationStack.back() = choice;
 		mutationsCounter = ATTEMPTS_COUNT;
@@ -203,16 +204,14 @@ VOID NextMutation(UINT32 id, BOOL exception=false)
 	}
 	else
 	{
-		UINT32 choice;
 		if (CompareTraces())
 		{
 			cout << "!1" << endl;
 			unsuccessfulAttempts.clear();
 			unsuccessfulAttempts = vector<UINT32>(mutationStack);
 			mutationsCounter = ATTEMPTS_COUNT;
-			choice = rand() % (savedRtnData[id].size() + 6);
 			while (find(unsuccessfulAttempts.begin(), unsuccessfulAttempts.end(), choice) != unsuccessfulAttempts.end())
-				choice = rand() % (savedRtnData[id].size() + 6);
+				choice = rand() % (add + 6);
 
 			mutationStack.push_back(choice);
 		}
@@ -222,7 +221,7 @@ VOID NextMutation(UINT32 id, BOOL exception=false)
 			{
 				cout << "!2" << endl;
 				unsuccessfulAttempts.push_back(mutationStack.back());
-				if (mutationStack.size() == savedRtnData[id].size() + 6)
+				if (mutationStack.size() == add + 6)
 				{
 					cout << "!3" << endl;
 					unsuccessfulAttempts.clear();
@@ -230,9 +229,8 @@ VOID NextMutation(UINT32 id, BOOL exception=false)
 					unsuccessfulAttempts = vector<UINT32>(mutationStack);
 				}
 
-				choice = rand() % (savedRtnData[id].size() + 6);
 				while (find(unsuccessfulAttempts.begin(), unsuccessfulAttempts.end(), choice) != unsuccessfulAttempts.end())
-					choice = rand() % (savedRtnData[id].size() + 6);
+					choice = rand() % (add + 6);
 
 				mutationStack.back() = choice;
 				mutationsCounter = ATTEMPTS_COUNT;
@@ -240,7 +238,6 @@ VOID NextMutation(UINT32 id, BOOL exception=false)
 			else if (mutationStack.empty())
 			{
 				cout << "!4" << endl;
-				choice = rand() % (savedRtnData[id].size() + 6);
 				mutationStack.push_back(choice);
 				mutationsCounter = ATTEMPTS_COUNT;
 			}
