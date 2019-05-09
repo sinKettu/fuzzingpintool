@@ -208,7 +208,6 @@ VOID NextMutation(UINT32 id, BOOL exception=false)
 	{
 		if (CompareTraces())
 		{
-			cout << "!1" << endl;
 			unsuccessfulAttempts.clear();
 			unsuccessfulAttempts = vector<UINT32>(mutationStack);
 			mutationsCounter = ATTEMPTS_COUNT;
@@ -221,11 +220,9 @@ VOID NextMutation(UINT32 id, BOOL exception=false)
 		{
 			if (mutationsCounter == 0)
 			{
-				cout << "!2" << endl;
 				unsuccessfulAttempts.push_back(mutationStack.back());
 				if (mutationStack.size() == add + 6)
 				{
-					cout << "!3" << endl;
 					unsuccessfulAttempts.clear();
 					mutationStack.pop_back();
 					unsuccessfulAttempts = vector<UINT32>(mutationStack);
@@ -239,13 +236,11 @@ VOID NextMutation(UINT32 id, BOOL exception=false)
 			}
 			else if (mutationStack.empty())
 			{
-				cout << "!4" << endl;
 				mutationStack.push_back(choice);
 				mutationsCounter = ATTEMPTS_COUNT;
 			}
 			else
 			{
-				cout << "!5" << endl;
 				mutationsCounter--;
 			}
 		}
@@ -256,7 +251,6 @@ VOID NextMutation(UINT32 id, BOOL exception=false)
 			currentTrace[i] = 0;
 		}
 		cout << mutationStack.back() << endl;
-		cout << "!6" << endl;
 	}
 }
 
@@ -285,11 +279,11 @@ VOID HandleRtnMemoryRead(UINT32 id, ADDRINT ea, UINT32 size)
 	else if (phase == FUZZING_PHASE && id == fuzzedCodeId)
 	{
 		// put memory mutations here
-		UINT32 choice = mutationStack.back() - 7;
-		if (choice >= 0 && savedRtnData[id].at(choice).Address == ea && !memoryMutated)
+		UINT32 choice = mutationStack.back();
+		if (choice >= 7 && savedRtnData[id].at(choice - 7).Address == ea && !memoryMutated)
 		{
 			memoryMutated = true;
-			MutateMemoryVal(id, choice);
+			MutateMemoryVal(id, choice - 7);
 		}
 	}
 }
@@ -463,8 +457,8 @@ VOID Fuzzer_ExceptionHandler(THREADID threadIndex, CONTEXT_CHANGE_REASON reason,
 			cout << "4. EDX " << hexstr(PIN_GetContextReg(from, REG_EDX)) << endl;
 			cout << "5. ESI " << hexstr(PIN_GetContextReg(from, REG_ESI)) << endl;
 			cout << "6. EDI " << hexstr(PIN_GetContextReg(from, REG_EDI)) << endl;
-			cout << "7. ESP " << hexstr(PIN_GetContextReg(from, REG_EBP)) << endl;
-			cout << "(  EBP " << hexstr(PIN_GetContextReg(from, REG_EBP)) << ")" << endl;
+			cout << "7. EBP " << hexstr(PIN_GetContextReg(from, REG_EBP)) << endl;
+			cout << "(  ESP " << hexstr(PIN_GetContextReg(from, REG_ESP)) << "  )" << endl;
 			for (UINT32 index = 0; index < savedRtnData[fuzzedCodeId].size(); index++)
 			{
 				cout << index + 8 << ". Address: " << hexstr(savedRtnData[fuzzedCodeId].at(index).Address) << "; ";
