@@ -4,6 +4,7 @@ using namespace std;
 #define PREPARATORY_PHASE			0
 #define FUZZING_PHASE				1
 #define ATTEMPTS_PER_VAL_COUNT		3
+#define HEAP_VALUE_SIZE_MASK		0x3fff
 
 struct MemoryData
 {
@@ -65,6 +66,10 @@ BOOL memoryMutated = false;
 
 // One attempt is one 'mutationStack' depletion
 UINT32 generalAttemptsCounter = 0;
+
+// Random data stored in heap to replace
+UINT8 *heapVal;
+UINT32 heapValSize;
 
 /* ROUTINES */
 
@@ -160,9 +165,28 @@ VOID CheckIfFirst(UINT32 id, ADDRINT addr, CONTEXT *ctxt)
 	}
 }
 
+VOID RandomiseHeap()
+{
+	delete[] heapVal;
+	heapValSize = rand() & HEAP_VALUE_SIZE_MASK;
+	heapVal = new UINT8[heapValSize];
+	memset(heapVal, rand() & 0xff, heapValSize);
+}
+
 VOID MutateReg(UINT32 choice)
 {
-	ADDRINT val = rand() & UINT32_MAX;
+	UINT8 useHeap = rand() & 0xff;
+	ADDRINT val;
+	if (useHeap)
+	{
+		cout << "3" << endl;
+		RandomiseHeap();
+		val = reinterpret_cast<ADDRINT>(heapVal);
+		cout << "4" << endl;
+	}
+	else
+		val = rand() & UINT32_MAX;
+
 	PIN_SetContextReg(&replacingCtxt, regArray[choice], val);
 }
 
@@ -171,9 +195,21 @@ VOID MutateMemoryVal(UINT32 id, UINT32 choice)
 	if (savedRtnData[id].empty())
 		return;
 
+	UINT8 useHeap = rand() & 0xff;
 	ADDRINT *ea = reinterpret_cast<ADDRINT*>(savedRtnData[id].at(choice).Address);
-	UINT32 mask = (1 << (8 * savedRtnData[id].at(choice).Size)) - 1;
-	UINT32 val = rand() & mask;
+	ADDRINT val;
+	if (savedRtnData[id].at(choice).Size == 4 && useHeap)
+	{
+		cout << "1" << endl;
+		RandomiseHeap();
+		val = reinterpret_cast<ADDRINT>(heapVal);
+		cout << "2" << endl;
+	}
+	else
+	{
+		UINT32 mask = (1 << (8 * savedRtnData[id].at(choice).Size)) - 1;
+		val = rand() & mask;
+	}
 	
 	PIN_SafeCopy(ea, &val, savedRtnData[id].at(choice).Size);
 }
@@ -310,6 +346,7 @@ VOID HandleRtnRet(UINT32 id)
 
 			// put context mutations here
 			srand(time(nullptr));
+			heapVal = new UINT8[1];
 			NextMutation(id);
 			if (mutationStack.back() < 7)
 				MutateReg(mutationStack.back());
