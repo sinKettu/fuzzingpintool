@@ -4,7 +4,7 @@ using namespace std;
 #define PREPARATORY_PHASE			0
 #define FUZZING_PHASE				1
 #define ATTEMPTS_PER_VAL_COUNT		3
-#define HEAP_VALUE_SIZE_MASK		0x3fff
+#define HEAP_VALUE_SIZE_MASK		2047
 
 struct MemoryData
 {
@@ -175,11 +175,13 @@ VOID RandomiseHeap()
 
 VOID MutateReg(UINT32 choice)
 {
-	UINT8 useHeap = rand() & 0xff;
+	UINT8 useHeap = rand() & 1;
 	ADDRINT val;
 	if (useHeap)
 	{
+		cout << "1" << endl;
 		RandomiseHeap();
+		cout << "2" << endl;
 		val = reinterpret_cast<ADDRINT>(heapVal);
 	}
 	else
@@ -193,12 +195,14 @@ VOID MutateMemoryVal(UINT32 id, UINT32 choice)
 	if (savedRtnData[id].empty())
 		return;
 
-	UINT8 useHeap = rand() & 0xff;
+	UINT8 useHeap = rand() & 1;
 	ADDRINT *ea = reinterpret_cast<ADDRINT*>(savedRtnData[id].at(choice).Address);
 	ADDRINT val;
 	if (savedRtnData[id].at(choice).Size == 4 && useHeap)
 	{
+		cout << "3" << endl;
 		RandomiseHeap();
+		cout << "4" << endl;
 		val = reinterpret_cast<ADDRINT>(heapVal);
 	}
 	else
