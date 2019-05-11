@@ -179,10 +179,8 @@ VOID MutateReg(UINT32 choice)
 	ADDRINT val;
 	if (useHeap)
 	{
-		cout << "3" << endl;
 		RandomiseHeap();
 		val = reinterpret_cast<ADDRINT>(heapVal);
-		cout << "4" << endl;
 	}
 	else
 		val = rand() & UINT32_MAX;
@@ -200,10 +198,8 @@ VOID MutateMemoryVal(UINT32 id, UINT32 choice)
 	ADDRINT val;
 	if (savedRtnData[id].at(choice).Size == 4 && useHeap)
 	{
-		cout << "1" << endl;
 		RandomiseHeap();
 		val = reinterpret_cast<ADDRINT>(heapVal);
-		cout << "2" << endl;
 	}
 	else
 	{
