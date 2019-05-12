@@ -179,9 +179,7 @@ VOID MutateReg(UINT32 choice)
 	ADDRINT val;
 	if (useHeap)
 	{
-		cout << "1" << endl;
 		RandomiseHeap();
-		cout << "2" << endl;
 		val = reinterpret_cast<ADDRINT>(heapVal);
 	}
 	else
@@ -200,9 +198,7 @@ VOID MutateMemoryVal(UINT32 id, UINT32 choice)
 	ADDRINT val;
 	if (savedRtnData[id].at(choice).Size == 4 && useHeap)
 	{
-		cout << "3" << endl;
 		RandomiseHeap();
-		cout << "4" << endl;
 		val = reinterpret_cast<ADDRINT>(heapVal);
 	}
 	else
@@ -218,10 +214,11 @@ BOOL CompareTraces()
 {
 	UINT32 lastSum = 0;
 	UINT32 currentSum = 0;
-	for (UINT32 i = 0; i < lastTrace.size(); i++)
+
+	for (map<ADDRINT, UINT32>::iterator iter = lastTrace.begin(); iter != lastTrace.end(); iter++)
 	{
-		lastSum += lastTrace[i];
-		currentSum += currentTrace[i];
+		lastSum += iter->second;
+		currentSum += currentTrace[iter->first];
 	}
 
 	return currentSum > lastSum;
@@ -286,11 +283,14 @@ VOID NextMutation(UINT32 id, BOOL exception=false)
 			}
 		}
 
-		for (UINT32 i = 0; i < lastTrace.size(); i++)
+		lastTrace.clear();
+		lastTrace = map<ADDRINT, UINT32>(currentTrace);
+		currentTrace.clear();
+		/*for (UINT32 i = 0; i < lastTrace.size(); i++)
 		{
 			lastTrace[i] = currentTrace[i];
 			currentTrace[i] = 0;
-		}
+		}*/
 	}
 }
 
@@ -367,6 +367,7 @@ VOID HandleRtnRet(UINT32 id)
 	else if (!generalAttemptsCounter)
 	{
 		// Cancel fuzzing here
+		cout << "-= E N D =-" << endl;
 	}
 }
 
