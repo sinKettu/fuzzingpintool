@@ -215,19 +215,17 @@ VOID MutateMemoryVal(UINT32 id, UINT32 choice)
 
 BOOL CompareTraces()
 {
-	UINT32 lastSum = 0;
-	UINT32 currentSum = 0;
-
+	BOOL success = false;
 	for (map<ADDRINT, UINT32>::iterator iter = lastTrace.begin(); iter != lastTrace.end(); iter++)
 	{
-		lastSum += iter->second;
-		currentSum += currentTrace[iter->first];
+		if (currentTrace[iter->first] > iter->second)
+			success = true;
 
 		iter->second = currentTrace[iter->first];
 		currentTrace[iter->first] = 0;
 	}
 	
-	return currentSum > lastSum;
+	return success;
 }
 
 VOID HandleRtnMemoryRead(UINT32 id, ADDRINT ea, UINT32 size)
