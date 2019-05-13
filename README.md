@@ -53,7 +53,7 @@ The project is analysis tool which purpose is error detection by fuzzing.
 
 Build and compile:
 Download PIN from official site then put the project in directory
-%PIN_root_dir%\source\tools
+%PIN_root_dir%\source\tools. Use Microsoft Visual Studio to build and compile.
 
 Run:
 pin.exe -t path\to\FuzzingPinTool.dll <options> -- program.exe
