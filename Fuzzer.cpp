@@ -71,6 +71,8 @@ UINT32 generalAttemptsCounter = 0;
 UINT8 *heapVal;
 UINT32 heapValSize;
 
+UINT32 mutationCandidatesCounter = 0;
+
 /* ROUTINES */
 
 BOOL Fuzzer_LoadList(string path)
@@ -224,76 +226,6 @@ BOOL CompareTraces()
 	return currentSum > lastSum;
 }
 
-VOID NextMutation(UINT32 id, BOOL exception=false)
-{
-	UINT32 add = savedRtnData.find(id) == savedRtnData.end() ? 0 : savedRtnData[id].size();
-	UINT32 choice = rand() % (add + 6);
-	if (!id && exception)
-	{
-		id = fuzzedCodeId;
-		unsuccessfulAttempts.push_back(mutationStack.back());
-		while (find(unsuccessfulAttempts.begin(), unsuccessfulAttempts.end(), choice) != unsuccessfulAttempts.end())
-			choice = rand() % (add + 6);
-
-		mutationStack.back() = choice;
-		mutationsCounter = ATTEMPTS_PER_VAL_COUNT;
-
-		for (UINT32 i = 0; i < lastTrace.size(); i++)
-			currentTrace[i] = 0;
-	}
-	else
-	{
-		if (CompareTraces())
-		{
-			unsuccessfulAttempts.clear();
-			unsuccessfulAttempts = vector<UINT32>(mutationStack);
-			mutationsCounter = ATTEMPTS_PER_VAL_COUNT;
-			while (find(unsuccessfulAttempts.begin(), unsuccessfulAttempts.end(), choice) != unsuccessfulAttempts.end())
-				choice = rand() % (add + 6);
-
-			mutationStack.push_back(choice);
-		}
-		else
-		{
-			if (mutationsCounter == 0)
-			{
-				unsuccessfulAttempts.push_back(mutationStack.back());
-				if (mutationStack.size() == add + 6)
-				{
-					unsuccessfulAttempts.clear();
-					mutationStack.pop_back();
-					unsuccessfulAttempts = vector<UINT32>(mutationStack);
-				}
-
-				while (find(unsuccessfulAttempts.begin(), unsuccessfulAttempts.end(), choice) != unsuccessfulAttempts.end())
-					choice = rand() % (add + 6);
-
-				mutationStack.back() = choice;
-				mutationsCounter = ATTEMPTS_PER_VAL_COUNT;
-			}
-			else if (mutationStack.empty())
-			{
-				generalAttemptsCounter--;
-				mutationStack.push_back(choice);
-				mutationsCounter = ATTEMPTS_PER_VAL_COUNT;
-			}
-			else
-			{
-				mutationsCounter--;
-			}
-		}
-
-		lastTrace.clear();
-		lastTrace = map<ADDRINT, UINT32>(currentTrace);
-		currentTrace.clear();
-		/*for (UINT32 i = 0; i < lastTrace.size(); i++)
-		{
-			lastTrace[i] = currentTrace[i];
-			currentTrace[i] = 0;
-		}*/
-	}
-}
-
 VOID HandleRtnMemoryRead(UINT32 id, ADDRINT ea, UINT32 size)
 {
 	if (phase == PREPARATORY_PHASE && id == fuzzedCodeId)
@@ -328,6 +260,84 @@ VOID HandleRtnMemoryRead(UINT32 id, ADDRINT ea, UINT32 size)
 	}
 }
 
+BOOL GetNext()
+{
+	UINT32 msb = mutationStack.back();
+	bool exhausted = false;
+	mutationStack.pop_back();
+	while (true)
+	{
+		if (msb >= mutationCandidatesCounter)
+		{
+			if (!mutationStack.empty())
+			{
+				msb = ++mutationStack.back();
+				mutationStack.pop_back();
+				continue;
+			}
+			else
+			{
+				return false;
+			}
+		}
+
+		if (find(mutationStack.begin(), mutationStack.end(), msb) != mutationStack.end())
+			msb++;
+		else
+			break;
+	}
+
+	mutationStack.push_back(msb);
+	cout << "!!! --- " << mutationStack.back() << endl;
+	return true;
+}
+
+BOOL NextMutation1(UINT32 id, BOOL exception = false)
+{
+	if (!id && exception)
+	{
+		// in case if exception is occurred
+	}
+	else if (mutationStack.empty())
+	{
+		mutationStack.push_back(0);
+		mutationsCounter = ATTEMPTS_PER_VAL_COUNT;
+	}
+	else if (CompareTraces())
+	{
+		if (mutationStack.size() == mutationCandidatesCounter)
+			mutationStack.back()++;
+		else
+			mutationStack.push_back(0);
+
+		mutationsCounter = ATTEMPTS_PER_VAL_COUNT;
+		return GetNext();
+	}
+	else if (mutationsCounter == 0)
+	{
+		mutationsCounter = ATTEMPTS_PER_VAL_COUNT;
+		return GetNext();
+	}
+	else
+	{
+		mutationsCounter--;
+	}
+
+	return true;
+}
+
+VOID RestoreMemory(UINT32 id)
+{
+	if (savedRtnData[id].empty())
+		return;
+
+	for (UINT32 index = 0; index < savedRtnData[id].size(); index++)
+	{
+		ADDRINT *addr = reinterpret_cast<ADDRINT*>(savedRtnData[id].at(index).Address);
+		PIN_SafeCopy(addr, &savedRtnData[id].at(index).Value, savedRtnData[id].at(index).Size);
+	}
+}
+
 VOID HandleRtnRet(UINT32 id)
 {
 	if (phase == PREPARATORY_PHASE && id == fuzzedCodeId)
@@ -337,38 +347,38 @@ VOID HandleRtnRet(UINT32 id)
 		{
 			fuzzedCodeId = id;
 			phase = FUZZING_PHASE;
-			if (savedRtnData.find(id) == savedRtnData.end())
-				generalAttemptsCounter = 8;
-			else
-				generalAttemptsCounter = 7 + savedRtnData[id].size();
-
+			mutationCandidatesCounter = 7 + savedRtnData[id].size();
 			PIN_SaveContext(&rtnCtxt->second, &replacingCtxt);
 
 			// put context mutations here
 			srand(time(nullptr));
 			heapVal = new UINT8[1];
-			NextMutation(id);
+			NextMutation1(id);
 			if (mutationStack.back() < 7)
 				MutateReg(mutationStack.back());
 
 			PIN_ExecuteAt(&replacingCtxt);
 		}
 	}
-	else if (phase == FUZZING_PHASE && id == fuzzedCodeId && generalAttemptsCounter)
+	else if (phase == FUZZING_PHASE && id == fuzzedCodeId)
 	{
 		// put context mutations here
 		memoryMutated = false;
-		NextMutation(id);
-		if (mutationStack.back() < 7)
-			MutateReg(mutationStack.back());
+		if (NextMutation1(id))
+		{
+			if (mutationStack.back() < 7)
+				MutateReg(mutationStack.back());
 
-		PIN_ExecuteAt(&replacingCtxt);
+			PIN_ExecuteAt(&replacingCtxt);
+		}
+		else
+		{
+			phase = PREPARATORY_PHASE;
+			RestoreMemory(id);
+			//PIN_ExecuteAt(&savedRtnCtxt[id]);
+		}
 	}
-	else if (!generalAttemptsCounter)
-	{
-		// Cancel fuzzing here
-		cout << "-= E N D =-" << endl;
-	}
+	
 }
 
 VOID FuzzerBblCounter(UINT32 id, UINT32 *last, UINT32 *current)
@@ -519,9 +529,6 @@ VOID Fuzzer_ExceptionHandler(THREADID threadIndex, CONTEXT_CHANGE_REASON reason,
 				cout << "Value: " << hexstr(val) << endl;
 			}
 
-			NextMutation(0, true);
-			if (mutationStack.back() < 7)
-				MutateReg(mutationStack.back());
 
 			PIN_ExecuteAt(&replacingCtxt);
 		}
