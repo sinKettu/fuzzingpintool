@@ -64,13 +64,11 @@ UINT8 mutationsCounter = ATTEMPTS_PER_VAL_COUNT;
 // flag
 BOOL memoryMutated = false;
 
-// One attempt is one 'mutationStack' depletion
-UINT32 generalAttemptsCounter = 0;
-
 // Random data stored in heap to replace
 UINT8 *heapVal;
 UINT32 heapValSize;
 
+// Number of values which can be mutated
 UINT32 mutationCandidatesCounter = 0;
 
 /* ROUTINES */
