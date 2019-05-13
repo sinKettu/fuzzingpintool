@@ -78,7 +78,6 @@ with new line.
 
 -fuzz <cfg_file.txt> -- Specified routines and instructions ranges fuzzing.
 Configuration file example is stored in: 'Config Examples\fuzzing.txt'
-(DOESN'T WORK)
 
 !!!
 The project is under development. Some functions and scopes aren't implemented.
