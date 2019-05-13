@@ -3,9 +3,9 @@ using namespace std;
 
 #define PREPARATORY_PHASE			0
 #define FUZZING_PHASE				1
-#define ATTEMPTS_PER_VAL_COUNT		3
+#define ATTEMPTS_PER_VAL_COUNT		5
 #define HEAP_VALUE_SIZE_MASK		2047
-#define FAILURE						30
+#define FAILURE						50
 
 struct MemoryData
 {
@@ -252,6 +252,29 @@ VOID HandleRtnMemoryRead(UINT32 id, ADDRINT ea, UINT32 size)
 	}
 	else if (phase == FUZZING_PHASE && id == fuzzedCodeId)
 	{
+		BOOL found = false;
+		for (UINT32 index = 0; index < savedRtnData[id].size(); index++)
+		{
+			if (savedRtnData[id].at(index).Address == ea)
+				found = true;
+		}
+
+		if (!found)
+		{
+			ADDRINT val = 0;
+			ADDRINT *ptr = reinterpret_cast<ADDRINT *>(ea);
+			PIN_SafeCopy(&val, ptr, size);
+
+			MemoryData tmp;
+			tmp.Address = ea;
+			tmp.Value = val;
+			tmp.Size = size;
+
+			savedRtnData[id].push_back(tmp);
+			mutationCandidatesCounter++;
+			return;
+		}
+
 		// put memory mutations here
 		UINT32 choice = mutationStack.back();
 		if (choice >= 7 && savedRtnData[id].at(choice - 7).Address == ea && !memoryMutated)
@@ -309,7 +332,6 @@ BOOL GetNext(UINT32 id)
 	}
 
 	UINT32 msb = ++mutationStack.back();
-	bool exhausted = false;
 	mutationStack.pop_back();
 	while (true)
 	{
@@ -350,12 +372,10 @@ BOOL NextMutation1(UINT32 id, BOOL exception = false)
 	}
 	else if (CompareTraces())
 	{
-		failureCounter = 0;
-		if (mutationStack.size() == mutationCandidatesCounter)
-			mutationStack.back()++;
-		else
+		if (mutationStack.size() != mutationCandidatesCounter)
 			mutationStack.push_back(0);
 
+		failureCounter = 0;
 		mutationsCounter = ATTEMPTS_PER_VAL_COUNT;
 		return GetNext(id);
 	}
@@ -387,7 +407,7 @@ VOID HandleRtnRet(UINT32 id)
 			PIN_SaveContext(&rtnCtxt->second, &replacingCtxt);
 
 			// put context mutations here
-			srand(time(nullptr));
+			srand(time(nullptr) ^ rand());
 			heapVal = new UINT8[1];
 			NextMutation1(id);
 			if (mutationStack.back() < 7)
