@@ -264,10 +264,25 @@ VOID HandleRtnMemoryRead(UINT32 id, ADDRINT ea, UINT32 size)
 	}
 }
 
-BOOL GetNext()
+VOID RestoreMemory(UINT32 id)
+{
+	if (savedRtnData[id].empty())
+		return;
+
+	for (UINT32 index = 0; index < savedRtnData[id].size(); index++)
+	{
+		ADDRINT *addr = reinterpret_cast<ADDRINT*>(savedRtnData[id].at(index).Address);
+		PIN_SafeCopy(addr, &savedRtnData[id].at(index).Value, savedRtnData[id].at(index).Size);
+	}
+}
+
+BOOL GetNext(UINT32 id)
 {
 	if (failureCounter == FAILURE)
 	{
+		PIN_SaveContext(&savedRtnCtxt[id], &replacingCtxt);
+		RestoreMemory(id);
+
 		UINT32 tmp = *mutationStack.begin();
 		tmp++;
 		mutationStack.clear();
@@ -281,6 +296,18 @@ BOOL GetNext()
 			failureCounter = 0;
 			return true;
 		}
+	}
+
+	if (mutationStack.back() < 7)
+	{
+		ADDRINT reg = PIN_GetContextReg(&savedRtnCtxt[id], regArray[mutationStack.back()]);
+		PIN_SetContextReg(&replacingCtxt, regArray[mutationStack.back()], reg);
+	}
+	else
+	{
+		UINT32 choice = mutationStack.back() - 7;
+		ADDRINT *addr = reinterpret_cast<ADDRINT*>(savedRtnData[id].at(choice).Address);
+		PIN_SafeCopy(addr, &savedRtnData[id].at(choice).Value, savedRtnData[id].at(choice).Size);
 	}
 
 	UINT32 msb = ++mutationStack.back();
@@ -332,13 +359,13 @@ BOOL NextMutation1(UINT32 id, BOOL exception = false)
 			mutationStack.push_back(0);
 
 		mutationsCounter = ATTEMPTS_PER_VAL_COUNT;
-		return GetNext();
+		return GetNext(id);
 	}
 	else if (mutationsCounter == 0)
 	{
 		failureCounter++;
 		mutationsCounter = ATTEMPTS_PER_VAL_COUNT;
-		return GetNext();
+		return GetNext(id);
 	}
 	else
 	{
@@ -347,18 +374,6 @@ BOOL NextMutation1(UINT32 id, BOOL exception = false)
 	}
 
 	return true;
-}
-
-VOID RestoreMemory(UINT32 id)
-{
-	if (savedRtnData[id].empty())
-		return;
-
-	for (UINT32 index = 0; index < savedRtnData[id].size(); index++)
-	{
-		ADDRINT *addr = reinterpret_cast<ADDRINT*>(savedRtnData[id].at(index).Address);
-		PIN_SafeCopy(addr, &savedRtnData[id].at(index).Value, savedRtnData[id].at(index).Size);
-	}
 }
 
 VOID HandleRtnRet(UINT32 id)
@@ -543,6 +558,7 @@ VOID Fuzzer_ExceptionHandler(THREADID threadIndex, CONTEXT_CHANGE_REASON reason,
 			cout << "6.\tEDI " << hexstr(PIN_GetContextReg(from, REG_EDI)) << endl;
 			cout << "7.\tEBP " << hexstr(PIN_GetContextReg(from, REG_EBP)) << endl;
 			cout << "(\tESP " << hexstr(PIN_GetContextReg(from, REG_ESP)) << "  )" << endl;
+			cout << "(\tEIP " << hexstr(PIN_GetContextReg(from, REG_EIP)) << "  )" << endl;
 			for (UINT32 index = 0; index < savedRtnData[fuzzedCodeId].size(); index++)
 			{
 				cout << index + 8 << ".\tAddress: " << hexstr(savedRtnData[fuzzedCodeId].at(index).Address) << "; ";
