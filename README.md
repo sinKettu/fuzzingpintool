@@ -38,7 +38,7 @@ pin.exe -t path\to\FuzzingPinTool.dll <options> -- program.exe
 
 -fuzz <cfg_file.txt> -- Фаззинг заданных функций и диапазонов инструкций,
 заданных в конфигурационном файле (cfg_file.txt). Пример конфигурационного
-файла расположен в 'Config Examples\fuzzing.txt' (НЕ РАБОТАЕТ)
+файла расположен в 'Config Examples\fuzzing.txt'
 
 !!!
 Весь представленный код пока что находится в стадии разработки.
