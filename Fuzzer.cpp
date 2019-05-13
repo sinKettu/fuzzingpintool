@@ -5,6 +5,7 @@ using namespace std;
 #define FUZZING_PHASE				1
 #define ATTEMPTS_PER_VAL_COUNT		3
 #define HEAP_VALUE_SIZE_MASK		2047
+#define FAILURE						30
 
 struct MemoryData
 {
@@ -70,6 +71,8 @@ UINT32 heapValSize;
 
 // Number of values which can be mutated
 UINT32 mutationCandidatesCounter = 0;
+
+UINT32 failureCounter = 0;
 
 /* ROUTINES */
 
@@ -219,8 +222,11 @@ BOOL CompareTraces()
 	{
 		lastSum += iter->second;
 		currentSum += currentTrace[iter->first];
-	}
 
+		iter->second = currentTrace[iter->first];
+		currentTrace[iter->first] = 0;
+	}
+	
 	return currentSum > lastSum;
 }
 
@@ -260,7 +266,24 @@ VOID HandleRtnMemoryRead(UINT32 id, ADDRINT ea, UINT32 size)
 
 BOOL GetNext()
 {
-	UINT32 msb = mutationStack.back();
+	if (failureCounter == FAILURE)
+	{
+		UINT32 tmp = *mutationStack.begin();
+		tmp++;
+		mutationStack.clear();
+		if (tmp >= mutationCandidatesCounter)
+		{
+			return false;
+		}
+		else
+		{
+			mutationStack.push_back(tmp);
+			failureCounter = 0;
+			return true;
+		}
+	}
+
+	UINT32 msb = ++mutationStack.back();
 	bool exhausted = false;
 	mutationStack.pop_back();
 	while (true)
@@ -286,7 +309,6 @@ BOOL GetNext()
 	}
 
 	mutationStack.push_back(msb);
-	cout << "!!! --- " << mutationStack.back() << endl;
 	return true;
 }
 
@@ -303,6 +325,7 @@ BOOL NextMutation1(UINT32 id, BOOL exception = false)
 	}
 	else if (CompareTraces())
 	{
+		failureCounter = 0;
 		if (mutationStack.size() == mutationCandidatesCounter)
 			mutationStack.back()++;
 		else
@@ -313,11 +336,13 @@ BOOL NextMutation1(UINT32 id, BOOL exception = false)
 	}
 	else if (mutationsCounter == 0)
 	{
+		failureCounter++;
 		mutationsCounter = ATTEMPTS_PER_VAL_COUNT;
 		return GetNext();
 	}
 	else
 	{
+		failureCounter++;
 		mutationsCounter--;
 	}
 
