@@ -1,10 +1,14 @@
 # List of routines to test
+# Instructions list is static and it doesn't depend on visited instructions
 [ROUTINES]
 # format: [path to image] [routine name]
 # path\to\dll\or\application.exe rtn1
 # path\to\dll\or\application.exe rtn2
 
 # List of instructions ranges to test (addresses in hex).
+# Instructions list is dynamic and it depends on visited instructions
+# If range last instructions won't be visited, the tool can crash
+# or give you unreliable output
 [RANGE]
 # format: [path to image] [begin address offset] [end address offset]
 # path\to\dll\or\application.exe 0x1000 0x1200
