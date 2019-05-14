@@ -327,26 +327,26 @@ VOID Test_Fini(INT32 exitCode, void*)
 		}
 		OatFout << endl;
 	}
-	for (RangesToTest::iterator iter = rangesToTest.begin(); iter != rangesToTest.end(); iter++)
+	if (rangesToTest.size())
 	{
-		OatFout << "[IMAGE]" << endl << iter->first << endl << endl;
-		for (UINT32 i = 0; i < iter->second.size(); i++)
+		for (RangesToTest::iterator iter = rangesToTest.begin(); iter != rangesToTest.end(); iter++)
 		{
-			OatFout << "[RANGE]" << "\t" << hexstr(iter->second.at(i).first) << ": " << hexstr(iter->second.at(i).second) << endl;
-			OatFout << "\nBASE: OFFSET\tDISASSEMBLED" << endl;
-			for (UINT32 j = 0; j < insInRanges.size(); j++)
+			OatFout << "[IMAGE]" << endl << iter->first << endl << endl;
+			OatFout << "[RANGES]" << endl;
+			for (UINT32 i = 0; i < iter->second.size(); i++)
 			{
-				if (insInRanges.at(j).Address >= iter->second.at(i).first && insInRanges.at(j).Address <= iter->second.at(i).second)
-				{
-					OatFout << hexstr(insInRanges.at(j).base) << ": " << hexstr(insInRanges.at(j).Address) << "\t" << insInRanges.at(j).Disassembled;
-					OatFout << "\t[" << insInRanges.at(j).VisitsCount << "]\n";
-				}
-
+				OatFout << hexstr(iter->second.at(i).first) << ":\t" << hexstr(iter->second.at(i).second) << endl;
 			}
-
+			OatFout << endl;
 		}
-		OatFout << endl;
+		OatFout << "[INSTRUCTIONS]" << endl;
+		for (UINT32 j = 0; j < insInRanges.size(); j++)
+		{
+			OatFout << hexstr(insInRanges.at(j).base) << ": " << hexstr(insInRanges.at(j).Address) << "\t" << insInRanges.at(j).Disassembled;
+			OatFout << "\t[" << insInRanges.at(j).VisitsCount << "]\n";
+		}
 	}
+	
 	if (!readData.empty())
 	{
 		OatFout << "[READ FROM MEMORY]" << endl;
